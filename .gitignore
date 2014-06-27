@@ -1,0 +1,13 @@
+*.bin
+*.swp
+*.hex
+*.ihx
+*.tmp
+*.lst
+*.rel
+*.asm
+*.lst
+*.sym
+*.map
+*.noi
+cpm.com
