@@ -1,0 +1,13 @@
+-mjx
+-k /usr/share/sdcc/lib/z80/
+-l z80
+-i bootcpm
+-b _CODE = 0x100
+runtime0.rel
+init.rel
+relocate.rel
+cpmimage.rel
+putchar.rel
+units.rel
+bios.rel
+-e

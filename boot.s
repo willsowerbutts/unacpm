@@ -54,12 +54,9 @@ bootstrap:
         ; -- careful with labels after here -- they will be offset 32K --
 
 continue:
-        ; Request UNA map user RAM back into the 0--32KB banked region.  We can't
-        ; use the normal entry vector (RST 8) since ROM is still there, so we use
-        ; the proxy at the top of memory directly instead.
+        ; Request UNA map user RAM back into the 0--32KB banked region.
         ld bc, #(UNABIOS_BANK_SET << 8 | UNABIOS_BANKEDMEM)
         ld de, #EXEC_PAGE
-        ; call UNABIOS_STUB_ENTRY
         rst #UNABIOS_CALL               ; can use this; we place the vector in ROM
 
         ; wipe out any existing vectors with HALT instructions

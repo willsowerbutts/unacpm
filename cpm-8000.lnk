@@ -1,0 +1,9 @@
+-mjx
+-i cpm-8000
+-b _CPMCCP  = 0x8000   ; If modifying, change the Makefile so hex2bin starts loading from the correct address
+-b _CPMBDOS = 0x8800   ; _CPMCCP + 2KB (0x800 bytes)
+-b _CPMBIOS = 0x9600   ; update CBIOS_START in cpmbios.s to match
+cpm22ccp.rel
+cpm22bdos.rel
+cpmbios.rel
+-e

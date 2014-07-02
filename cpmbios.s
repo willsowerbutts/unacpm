@@ -45,12 +45,6 @@
 
      .area _CPMBIOS
 
-; load address (used to check we don't overflow into CBIOS)
-CBIOS_START                 = 0xF600    ; update this when changing cpm.lnk
-
-; during boot we need a temporary buffer of 512 bytes in the top 32K
-SECTOR_BUFFER               = 0x8000    ; cpmboot.s already overwrites this address
-
 ; UNA BIOS interface details
 UNABIOS_STUB_START          = 0xFF00    ; UNA BIOS stub start
 UNABIOS_STUB_ENTRY          = 0xFF80    ; main UNA entry vector
@@ -76,6 +70,8 @@ UNABIOS_BLOCK_WRITE         = 0x43      ; C register (unit number in B, buffer a
 UNABIOS_BLOCK_GET_CAPACITY  = 0x45      ; C register (unit number in B, DE=0 or pointer to 512-byte buffer)
 UNABIOS_BLOCK_GET_TYPE      = 0x48      ; C register (unit number in B)
 
+UNABIOS_DRIVER_RAMROM       = 0x40      ; Driver ID for RAM/RAM disks
+
 ; constant values
 TRUE                        = 1
 FALSE                       = 0
@@ -88,6 +84,14 @@ WRT_UNA                     = 2         ; write to unallocated
 ; CP/M data addresses
 iobyte                      = 3         ; intel "standard" i/o byte
 cdisk                       = 4         ; current disk/user number
+
+; Addresses of the fields in the persist_t structure at the top of memory
+persist_signature           = 0xFF00 - 2
+persist_version             = persist_signature - 1
+bufadr                      = persist_version - 2
+ccpadr                      = bufadr - 2
+drvcnt                      = ccpadr - 1
+drvmap                      = drvcnt - 2
 
 ; the CP/M BIOS function call dispatch table
 ;--------------------------------------------------------------------------
@@ -539,23 +543,26 @@ blk_setup:
             ret
 
 ; lookup disk information based on cpm drive in C
-; on return, D=device/unit, E=slice, HL=DPH address
+; on return, C=requested drive, B=device/unit, HL=DPH address, DE=ptr to first LBA
 dsk_getinf:
-            ld a, c         ; A := cpm drive
-            cp #DRVCNT      ; compare to number of drives configured
-            jr nc, dsk_getinf1 ; if out of range,  go to error return
-            ld hl, #drvmap  ; HL := start of drive map
-            rlca            ; multiply a by 4...
-            rlca            ; to use as offset into drvmap
-            call addhla     ; add offset
-            ld d, (hl)      ; D := device/unit
-            inc hl          ; bump to slice
-            ld e, (hl)      ; E := slice
-            inc hl          ; point to dph lsb
-            ld a, (hl)      ; A := dph lsb
-            inc hl          ; point to dph msb
-            ld h, (hl)      ; H := dph msb
-            ld l, a         ; L := dph lsb
+            ld a, (drvcnt)  ; A = defined drive count
+            dec a           ; now A = highest valid drive number
+            cp c            ; compare with requested drive
+            jr c, dsk_getinf1 ; if out of range,  go to error return
+            ld hl, (drvmap) ; HL := start of drive map
+            ld a, c         ; A = drive #
+            ; compute HL = HL + 8 * A
+            rlca
+            rlca
+            rlca
+            call addhla     ; HL = HL + A
+            ld b, (hl)      ; B := device/unit
+            inc hl          ; advance to DPH
+            ld e, (hl)      ; load DPH
+            inc hl          ; ... into
+            ld d, (hl)      ; ... DE
+            inc hl          ; advance to point at LBA
+            ex de, hl       ; put DPH in HL, LBA ptr in DE
             xor a           ; set success
             ret
 dsk_getinf1:                ; error return
@@ -564,6 +571,7 @@ dsk_getinf1:                ; error return
             ld l, a
             ld d, a
             ld e, a
+            ld b, a
             inc a
             ret
 
@@ -574,77 +582,18 @@ addhla:     add a, l
             inc h
             ret
 
-; multiply 8-bit values
-; in:  multiply h by e
-; out: hl = result, e = 0, b = 0
-mult8:      ld d, #0
-            ld l, d
-            ld b, #8
-mult8_loop: add hl, hl
-            jr nc, mult8_noadd
-            add hl, de
-mult8_noadd: djnz mult8_loop
-            ret
-
-bios_seldsk:                ; select disk number for subsequent disk ops
+bios_seldsk:                ; select disk number (in C) for subsequent disk ops
 dsk_select:
-            ld b, e         ; save e in b for now
-            call dsk_getinf ; get D=device/unit, E=slice, HL=dph address
+            call dsk_getinf ; C unmodified, B=unit, DE=LBA ptr, HL=DPH ptr
             ret nz          ; return if invalid drive (A=1, NZ set, HL=0)
-            push bc         ; we need B later, save on stack
-
-            ; save all the new stuff
             ld a, c         ; A := cpm drive no
             ld (sekdsk), a  ; save it
-            ld a, d         ; A := device/unit
+            ld a, b         ; A := device/unit
             ld (sekdu), a   ; save device/unit
             ld (sekdph), hl ; save DPH pointer
-
-            ; update offset for active slice
-            ; a track is assumed to be 16 sectors
-            ; the offset represents the number of blocks * 256
-            ; to use as the offset
-            ld h, #65       ; h = tracks per slice,  e = slice no
-            call mult8      ; hl := h * e (total track offset)
-            ld (sekoff), hl ; save new track offset
-
-            pop bc          ; get original e into b
-            ; WRS: we just use static DPBs for the time being (keeping it simple)
-            ;; ; check if this is login,  if not,  bypass media detection
-            ;; ; fix: what if previous media detection failed???
-            ;; bit 0, b        ; test drive login bit
-            ;; jr nz, dsk_select2 ; bypass media detection
-
-            ;; ; determine media in drive
-            ;; ld a, (sekdu)   ; get device/unit
-            ;; ld c, a         ; store in c
-            ;; ld b, bf_diomed ; driver function = disk media
-            ;; rst 08
-            ;; or a            ; set flags
-            ;; ld hl, 0        ; assume failure
-            ;; ret z           ; bail out if no media
-
-            ;; ; a has media id,  set hl to corresponding dpbmap entry
-            ;; ld hl, dpbmap   ; hl = dpbmap
-            ;; rlca            ; dpbmap entries are 2 bytes each
-            ;; call addhla     ; add offset to hl
-
-            ;; ; lookup the actual dpb address now
-            ;; ld e, (hl)      ; dereference hl...
-            ;; inc hl          ; into de...
-            ;; ld d, (hl)      ; bc = address of desired dpb
-
-            ;; ; plug dpb into the active dph
-            ;; ld hl, (sekdph)
-            ;; ld bc, 10       ; offset of dpb in dph
-            ;; add hl, bc      ; hl := dph.dpb
-            ;; ld (hl), e      ; set lsb of dpb in dph
-            ;; inc hl          ; bump to msb
-            ;; ld (hl), d      ; set msb of dpb in dph
-dsk_select2:
-            ld hl, (sekdph) ; hl = dph address for cp/m 
+            ld (sekoff), de ; save LBA pointer
             xor a           ; flag success
-            ret             ; normal return
+            ret             ; normal return, with DPH in HL
 
 dsk_read:
             ld c, #UNABIOS_BLOCK_READ
@@ -659,44 +608,22 @@ dsk_io:
             push ix         ; save IX register
             push bc         ; save function number for later
 
-            ; load partition offset
-            ld hl, #unit_slice_info
-            ld a, (hstdu)
-            add a, a        ; *2
-            ld c, a         ; save *2
-            add a, a        ; *4
-            add a, c        ; *6
-            add l
-            ; HL += A
-            ld l, a
-            jr nc, dsk_io2
-            inc h
-dsk_io2:    push hl         ; store offset to LBA
-            
-            ; coerce track/sector into HL:DE as 0000:ttts
-            ld de, (hsttrk)
+
+            ; coerce track/sector into DE:HL as 0000:ttts
+            ld hl, (hsttrk)
             ld b, #4            ; prepare to left shift by 4 bits
 dsk_io3:
-            sla e               ; shift de left by 4 bits
-            rl d
+            sla l               ; shift de left by 4 bits
+            rl h
             djnz dsk_io3        ; loop till all 4 bits done
             ld a, (hstsec)      ; get the sector into a
             and #0x0f           ; get rid of top nibble
-            or e                ; combine with e
-            ld e, a             ; back in e
-            ld hl, #0           ; hl:de now has slice relative lba
-            ; apply slice offset now
-            ; slice offset is expressed as number of blocks * 256 to offset!
-            ld a, (hstoff)      ; lsb of slice offset to a
-            add a, d            ; add with d
-            ld d, a             ; put it back in d
-            ld a, (hstoff+1)    ; msb of slice offset to a
-            call addhla         ; add offset
-            ex de, hl           ; LBA is in HL:DE but we want it in DE:HL for UNA
-            ; LBA is in DE:HL is relative to start of partition; add in unit partition offset
+            or l                ; combine with e
+            ld l, a             ; back in e
+            ld de, #0           ; DE:HL now has slice relative LBA
 
-            ; apply partition offset now
-            pop ix              ; recover partition LBA pointer
+            ; LBA is in DE:HL is relative to start of slice; now add in the unit partition/slice offset
+            ld ix, (hstoff)     ; pointer to LBA of first block
 
             ; 32-bit addition  DE:HL = DE:HL + (IX)
             ld a, l
@@ -795,88 +722,7 @@ dskop:      .db     0           ; current disk operation (DOP_* constants)
 wrtype:     .db     0           ; write type (WRT_* constants)
 dmaadr:     .dw     0           ; disk I/O buffer address
 hstwrt:     .db     0           ; buffer dirty?
-bufadr:     .dw     0           ; address of disk sector buffer (in UNA bank!)
-ccpadr:     .dw     0           ; address of CCP copy (in UNA bank!)
 ubiospage:  .dw     0           ; UBIOS page number
-
-; Drive map: table with 4 bytes per drive
-; Statically configured for now (trying to keep things simple!)
-drvmap:
-            ; drive A:
-            .db     0           ; unit number
-            .db     0           ; slice number
-            .dw     dph_drv_a   ; DPH address
-            ; drive B:
-            .db     1           ; unit number
-            .db     0           ; slice number
-            .dw     dph_drv_b   ; DPH address
-            ; drive C:
-            .db     2           ; unit number
-            .db     0           ; slice number
-            .dw     dph_drv_c   ; DPH address
-            ; drive D:
-            .db     3           ; unit number
-            .db     0           ; slice number
-            .dw     dph_drv_d   ; DPH address
-
-DRVCNT      =       (( . - drvmap ) / 4)    ; number of defined drives
-
-; Number of units we will support (ie physical devices, before slicing)
-UNITCNT     =       4
-
-; LBA of sliced CP/M storage area on each unit (physical device)
-unit_slice_info:
-            .rept   UNITCNT
-            .db     0,0,0,0     ; start LBA on unit
-            .db     0,0         ; number of slices on unit
-            .endm
-
-; -------------------------------------------------------------------------
-
-; Disk Parameter Header (16 bytes per drive)
-dph_drv_a:
-            .dw     0           ; XLT = 0: no translation
-            .dw     0, 0, 0     ; BDOS scratchpad
-            .dw     dirbf       ; shared directory buffer
-            .dw     dpb_hdd     ; pointer to disk parameter block (can be shared)
-            .dw     0           ; checksum vector (unused for non-removable storage)
-            .dw     alv_drv_a   ; allocation vector
-dph_drv_b:
-            .dw     0           ; XLT = 0: no translation
-            .dw     0, 0, 0     ; BDOS scratchpad
-            .dw     dirbf       ; shared directory buffer
-            .dw     dpb_hdd     ; pointer to disk parameter block (can be shared)
-            .dw     0           ; checksum vector (unused for non-removable storage)
-            .dw     alv_drv_b   ; allocation vector
-dph_drv_c:
-            .dw     0           ; XLT = 0: no translation
-            .dw     0, 0, 0     ; BDOS scratchpad
-            .dw     dirbf       ; shared directory buffer
-            .dw     dpb_hdd     ; pointer to disk parameter block (can be shared)
-            .dw     0           ; checksum vector (unused for non-removable storage)
-            .dw     alv_drv_c   ; allocation vector
-dph_drv_d:
-            .dw     0           ; XLT = 0: no translation
-            .dw     0, 0, 0     ; BDOS scratchpad
-            .dw     dirbf       ; shared directory buffer
-            .dw     dpb_hdd     ; pointer to disk parameter block (can be shared)
-            .dw     0           ; checksum vector (unused for non-removable storage)
-            .dw     alv_drv_d   ; allocation vector
-
-; -------------------------------------------------------------------------
-
-; Disk Parameter Block for 8MB HDD (15 bytes per DPB, can be shared between drives)
-dpb_hdd:
-            .dw     64          ; SPT: sectors per track
-            .db     5           ; BSH: block shift factor
-            .db     31          ; BLM: block mask
-            .db     1           ; EXM: extent mask
-            .dw     2047        ; DSM: total blocks of storage - 1 (2048 * 128 * 32 = 8MB)
-            .dw     511         ; DRM: total directory entries - 1
-            .db     0xf0        ; AL0: allocation vector for directory, first byte
-            .db     0x00        ; AL1: allocation vector for directory, second byte
-            .dw     0           ; CKS: directory check vector size (CSV)
-            .dw     16          ; OFF: tracks reserved at start of disk (16 = 128KB)
 
 ; -------------------------------------------------------------------------
 
@@ -933,11 +779,6 @@ unaspt:     .dw     0       ; sectors per track
 ; These cannot be used before "boot" completes!
 ; These must be not require initialised values (.ds only)!
 postboot_data_start:            ; -- START POST-BOOT BUFFERS --
-alv_drv_a:  .ds 256             ; 2048 blocks
-alv_drv_b:  .ds 256             ; 2048 blocks
-alv_drv_c:  .ds 256             ; 2048 blocks
-alv_drv_d:  .ds 256             ; 2048 blocks
-dirbf:      .ds 128             ; directory scratch area
 bouncebuf:  .ds 128             ; low memory DMA bounce buffer
 postboot_data_end:              ; -- END POST-BOOT BUFFERS --
 postboot_data_len = postboot_data_end - postboot_data_start
@@ -949,256 +790,28 @@ postboot_data_len = postboot_data_end - postboot_data_start
 . = . - postboot_data_len
 init_code_start:
 
-; Found at http://baze.au.com/misc/z80bits.html#2.4
-; Divide a 24-bit number by an 8-bit number.
-; Input:  E:HL = Dividend, D = Divisor
-; Output: E:HL = Quotient, A = Remainder
-div24by8:
-            xor a
-            ld b, #24           ; repeat 24 times
-div24bit:
-            add hl,hl
-            rl  e
-            rla
-            cp  d
-            jr c, div24nextbit  ; jr  c,$+4
-            sub d
-            inc l
-div24nextbit:
-            djnz div24bit
-            ret
-
-unit_size:
-unit_size_lo:   .dw 0
-unit_size_hi:   .dw 0
-
-init_unit:
-            ; unit number in B, unit_slice_info pointer in IX
-            ; unit_slice_info entry is preloaded from ROM with zero LBA, zero slices.
-
-            ; read device type
-            ld c, #UNABIOS_BLOCK_GET_TYPE
-            call unacheck
-            ret nz
-            call printdehex
-            ex de, hl
-            call printdehex
-
-            ; read device size
-            push bc                     ; save unit number (B)
-            ld c, #UNABIOS_BLOCK_GET_CAPACITY
-            ld de, #0
-            call unacheck               ; note B is NOT preserved
-            pop bc                      ; recover unit number
-            ret nz                      ; return if BIOS call failed
-
-            call printdehex
-            ex de, hl
-            call printdehex
-            ex de, hl
-
-            ; sector capacity is in DE:HL, assume we can have the whole disk
-            ld (unit_size_lo), hl
-            ld (unit_size_hi), de
-
-            ; read MBR table from disk unit
-            ld c, #UNABIOS_BLOCK_SETLBA
-            ld de, #0                   ; first sector
-            ld hl, #0                   ; first sector
-            call unacheck
-            ret nz
-
-            ld c, #UNABIOS_BLOCK_READ
-            ld l, #1                    ; transfer single sector
-            ld de, #SECTOR_BUFFER       ; buffer in this bank -- WHERE?
-            call unacheck
-            ret nz
-
-            ; check for MBR signature
-            ld hl, #SECTOR_BUFFER+510
-            ld a, (hl)
-            cp #0x55
-            jr nz, mbrfail
-            inc hl
-            ld a, (hl)
-            cp #0xaa
-            jr nz, mbrfail
-
-            ; read primary partition entries
-            ld hl, #SECTOR_BUFFER + 446 + 4 ; +446=offset to first partition entry, +4=offset to type byte
-            ld b, #4                    ; four partition entries
-nextpartition:
-            ld de, #4
-            ld a, (hl)                  ; read type byte
-            add hl, de                  ; LBA address is 4 bytes after partition type
-            cp #0x32                    ; look for our partition type (0x32)
-            jr z, foundcpmpartiton
-            cp #0x05                    ; extended partition (CHS) - ignored for use as "protective partition" purposes.
-            jr z, nextslot
-            cp #0x0F                    ; extended partition (LBA) - ignored for use as "protective partition" purposes.
-            jr z, nextslot
-            push bc
-            or a                        ; any other non-empty type?
-            call nz, foundforeignpartition
-            pop bc
-nextslot:   ld de, #12                  ; partition entries are 16 bytes total, we already advanced 4
-            add hl, de                  ; advance last 12 bytes to next entry
-            dec b
-            jr nz, nextpartition
-mbrfail:
-            jr slicecount               ; proceed to compute slice count
-
-foundforeignpartition:
-            ; We have found a partition of the wrong type. HL points at start LBA.
-            ; Check the first disk sector, it sets a ceiling for the space we can use if no
-            ; CP/M partition is defined.
-            push hl ; save LBA pointer
-            inc hl
-            inc hl
-            inc hl
-            ld de, #unit_size+3
-            ex de, hl
-            ld b, #4
-comp:       ld a, (de)
-            cp (hl)
-            jr z, compeq        ; equal - check next byte
-            jr c, smaller
-            jr compdone
-            ; jr compdone         ; larger - we're done
-compeq:     dec hl
-            dec de
-            djnz comp
-smaller:    ; smaller or equal -- recover the LBA pointer, copy
-            pop hl
-            push hl
-            ld de, #unit_size
-            ld bc, #4
-            ldir
-compdone:   pop hl
-            ret
-
-foundcpmpartiton:
-            ; we have found a partition of the correct type. HL points at start LBA
-
-            ; store partition LBA offset at IX
-            push ix
-            pop de
-            ld bc, #4
-            ldir
-
-            ; copy the unit size for the slice calculation
-            ld de, #unit_size
-            ld bc, #4
-            ldir
-
-slicecount:
-            ; there are 0x4100 512-byte sectors per slice. compute unit_size / 0x4100.
-            ; we can ignore the low 8 bits and divide the top 24 bits of the length by 0x41.
-            ; load into E:HL
-            ld hl, (unit_size+1)
-            ld a, (unit_size+3)
-            ld e, a
-            ld d, #0x41                 ; divisor in D
-            call div24by8               ; leaves result in E:HL
-
-            ; test if E is non-zero, ie result >= 0x10000 
-            ld a, e
-            or a
-            jr z, gotslices
-            ld hl, #0xFFFF              ; maximum number of slices we can handle
-gotslices:
-            ld 4(ix), l                 ; store slice count
-            ld 5(ix), h
-            ret
-
-printahex_nopad:
-            push bc
-            ld c, a  ; copy value
-            ; print the top nibble
-            rra
-            rra
-            rra
-            rra
-            jr z, skiptopnibble
-            call printnibble
-skiptopnibble:
-            ; print the bottom nibble
-            ld a, c
-            call printnibble
-            pop bc
-            ret
-
-mallocfail:
-            ld de, #mallocfailmsg
-            call printstring
-            halt
-
 bios_boot:
+            ; put the stack in top 32K
+            ld sp, #s__CPMCCP
+
             ; say hello
             ld de, #bootmsg
             call printstring
-
-            ; report BIOS version
-            ld bc, #(UNABIOS_GET_VERSION << 8 | UNABIOS_GETINFO)
-            rst #UNABIOS_CALL
-            ld h, #0
-            ld l, d
-            call printhldec
-            ld a, #'.'
-            call outchar
-            ld a, e
-            and #0x7f       ; mask test bit
-            ld l, a
-            call printhldec
-            bit 7, e
-            jr z, donever
-            ld de, #testver
-            call printstring
-donever:
-            ld a, #' '
-            call outchar
 
             ; locate UNA's page in memory
             ld bc, #(UNABIOS_GET_PAGE_NUMBERS << 8 | UNABIOS_GETINFO)
             rst #UNABIOS_CALL
             ld (ubiospage), hl
 
-            ; tell the user about the memory mapping
-            push de ; save user page
-            ld de, #unamem2msg
-            call printstring
-            ex de, hl
-            call printdehex
-            ld de, #unamem3msg
-            call printstring
-            pop de
-            call printdehex
-            ld de, #crlf
-            call printstring
-
             ; perform standard CP/M initialisation
             xor a
             ld (iobyte), a
             ld (cdisk), a
 
-            ; allocate sector buffer in UNA's memory bank
-            ld c, #UNABIOS_MALLOC
-            ld de, #512
-            rst #UNABIOS_CALL
-            jr nz, mallocfail
-            ld (bufadr), hl
-
-            ; allocate buffer for copy of CCP in UNA's memory bank
-            ld c, #UNABIOS_MALLOC
-            ld de, #l__CPMCCP
-            rst #UNABIOS_CALL
-            jr nz, mallocfail
-            ld (ccpadr), hl
-
             ; map in UNA memory page
             call una_map_ubios
 
-            ; copy CCP to buffer
+            ; copy CCP to buffer in UNA memory
             ld hl, #s__CPMCCP
             ld de, (ccpadr)
             ld bc, #l__CPMCCP
@@ -1211,69 +824,7 @@ donever:
             ld hl, #bios_wboot
             ld (BOOT+1), hl
 
-            ; read MBR on each disk unit.
-            ld ix, #unit_slice_info ; start of unit slice info table
-            ld b, #0                ; first unit number
-
-nextunit:
-            ld de, #readunitmsg
-            call printstring
-            ld a, b
-            call printahex_nopad
-            ld de, #readunitmsg2
-            call printstring
-
-            push bc
-            call init_unit
-
-            ; zero LBA?
-            ld a, 0(ix)
-            or 1(ix)
-            or 2(ix)
-            or 3(ix)
-            jr z, notfound
-
-            ld de, #fndpartmsg
-            call printstring
-
-            ld a, 3(ix)
-            call printahex
-            ld a, 2(ix)
-            call printahex
-            ld a, 1(ix)
-            call printahex
-            ld a, 0(ix)
-            call printahex
-
-            ld de, #fndpartmsg2
-            call printstring
-
-            jr prslices
-
-notfound:   ld de, #nopartmsg
-            call printstring
-            ; fall through
-prslices:
-            ; print slice count
-            ld l, 4(ix)
-            ld h, 5(ix)
-            call printhldec
-
-            ld de, #slicesmsg
-            call printstring
-
-            ; advance to next unit in unit_slice_info table
-            ld de, #6
-            add ix, de
-
-            ; advance to next unit
-            pop bc
-            inc b
-            ld a, b
-            cp #UNITCNT
-            jr nz, nextunit
-
-            ; finally, set up for ldir to wipe out the buffers region
+            ; finally, set up for ldir to wipe out the buffers region -- not strictly required but useful for debugging blunders
             ld hl, #postboot_data_start
             ld de, #postboot_data_start+1
             ld bc, #postboot_data_len-1 ; we'll write the first byte
@@ -1283,102 +834,13 @@ prslices:
             ; continue boot
             jp gocpm_ldir
 
-; print the value in DE in hexdecimal
-printdehex:
-            ld a, d
-            call printahex
-            ld a, e
-            call printahex
-            ret
-
-; print the value in HL in decimal
-printhldec:
-            ld d, #0        ; flag to skip leading zeros
-            ld bc, #-10000
-            call dec1
-            ld bc, #-1000
-            call dec1
-            ld bc, #-100
-            call dec1
-            ld c, #-10
-            call dec1
-            ld c,b
-            ; force printing the last digit for the case HL=0
-            ld d, #1
-
-dec1:       ld  a, #'0'-1
-dec2:       inc a
-            add hl, bc
-            jr c, dec2
-            sbc hl, bc
-
-            cp #'0'
-            jr z, dec4
-            ld d, #1      ; yes, we've seen a non-zero digit
-dec3:       call outchar
-            ret
-dec4:       ; it's a zero. have we seen any non-zeroes?
-            bit 0, d
-            ret z ; no, continue looking
-            jr dec3 ; yes, print this digit.
-
-; make UNA BIOS call
-; return if no error, with no change to registers
-; otherwise print error and return (with all registers except A, BC and the Z flag destroyed)
-unacheck:
-            rst #UNABIOS_CALL
-            ret z ; no error
-            push bc ; save error
-            ; report it
-            ld de, #ioerrmsg    ; no - report error
-            call printstring
-            ld a, c
-            call printahex
-            ld de, #crlf
-            call printstring
-            pop bc
-            ld a, c
-            or a        ; set Z flag, Z=no error, NZ=error
-            ret
-
-
-; init data/messages
-
-bootmsg:    .ascii "N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-06-24)\r\n"
-            .ascii "CP/M 2.2 Copyright 1979 (c) by Digital Research"
+bootmsg:    .ascii "CP/M 2.2 Copyright 1979 (c) by Digital Research"
             .ascii "\r\n"
-            ; fall through
-unamem1msg: .ascii "UNA BIOS "
-            .db 0
-testver:    .ascii " TEST"
-            .db 0
-unamem2msg: .ascii "in page 0x"
-            .db 0
-unamem3msg: .ascii ", user memory in page 0x"
-            .db 0
-
-
-mallocfailmsg: .ascii "UNA malloc failed"
-            .db 0
-
-readunitmsg:.ascii "Reading MBR on disk "
-            .db 0
-
-readunitmsg2:.ascii " - "
-            .db 0
-
-nopartmsg:   .ascii "no CP/M partition found, using LBA 0, "
-            .db 0
-
-fndpartmsg: .ascii "CP/M partition at LBA 0x"
-            .db 0
-fndpartmsg2:.ascii ", "
-            .db 0
-
-slicesmsg:  .ascii " slices.\r\n"
             .db 0
 
 ; safety check to ensure we do not overflow the available space
+; ** we could allow more space if we could guarantee we were followed by some uninitialised buffer, eg dirbuf?
+; ** how to communicate the required runtime versus load time size to the initialisation code?
 init_code_len = (. - init_code_start)
 .ifgt (init_code_len - postboot_data_len) ; > 0 ?
 ; cause an error (.msg, .error not yet supported by sdas which itself is an error)
@@ -1387,15 +849,16 @@ init_code_len = (. - init_code_start)
 .endif
 ; end of init code and data
 ; pad buffers to length ---------------------------------------------------
-             .ds postboot_data_len - (. - init_code_start)   ; must be last
+             .ds postboot_data_len - (. - init_code_start) - 1 ; must be last
+             .db 0x00 ; write a value into the final byte so srec_cat outputs a file of the required size
 ; -------------------------------------------------------------------------
 ; END OF MEMORY SHARED WITH POST-BOOT BUFFERS
 ; -------------------------------------------------------------------------
 
-; safety check to ensure we do not overflow into the UBIOS stub at 0xFF00
-cbios_length = . - BOOT
-.ifgt cbios_length - (UNABIOS_STUB_START - CBIOS_START) ; > 0 ?
-; cause an error (.msg, .error not yet supported by sdas which itself is an error)
-.msg "CBIOS is too large"
-.error 1
-.endif
+;; ; safety check to ensure we do not overflow into the UBIOS stub at 0xFF00
+;; cbios_length = . - BOOT
+;; .ifgt cbios_length - (UNABIOS_STUB_START - CBIOS_START) ; > 0 ?
+;; ; cause an error (.msg, .error not yet supported by sdas which itself is an error)
+;; .msg "CBIOS is too large"
+;; .error 1
+;; .endif

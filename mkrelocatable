@@ -1,0 +1,161 @@
+#!/usr/bin/env python
+
+import sys
+
+# 2014-06-30
+# Efficiently encode a load-time relocatable CP/M image.
+
+# Testing on a sample early CP/M image (2014-06-30) gave the following run length histogram:
+#
+# length 2 count 55 (4.2%)
+# length 3 count 517 (39.7%)
+# length 4 count 203 (15.6%)
+# length 5 count 178 (13.7%)
+# length 6 count 95 (7.3%)
+# length 7 count 65 (5.0%)
+# length 8 count 45 (3.5%)
+# length 9 count 32 (2.5%)
+# length 10 count 16 (1.2%)
+# length 11 count 18 (1.4%)
+# length 12 count 10 (0.8%)
+# length 13 count 12 (0.9%)
+# length 14 count 9 (0.7%)
+# length 15 count 10 (0.8%)
+# length 16 or greater count 36 (2.8%)
+#  - longest observed run was length 278.
+#  - ~97% of runs are under 16 bytes in length
+
+# Naive encoding: 1 bit per byte = 12.5% overhead
+# 4-bit, 10-bit encoding: 9.3% overhead
+# 2-bit, 4-bit, 10-bit encoding: 8.3% overhead
+
+bitstream = list()
+def output_bit(val):
+    bitstream.append(val)
+
+def get_bitstream():
+    stream = list()
+
+    byte = 0
+    bits = 0
+    for bit in bitstream:
+        if bit:
+            byte = byte | 1
+        bits += 1
+        if bits == 8:
+            stream.append(chr(byte))
+            byte = 0
+            bits = 0
+        else:
+            byte = byte << 1
+
+    # pretty sure we end up out of alignment here but it doesn't
+    # matter since we output 12 0s at the end in any event so the
+    # final byte is always 0.
+    stream.append(chr(byte))
+
+    return ''.join(stream)
+
+def output_integer(val, bits):
+    # print "Encoding %d bit integer 0x%02x" % (bits, val)
+    encoded = list()
+    for b in range(bits):
+        encoded.append(val & 1)
+        val = val >> 1
+    for bit in reversed(encoded):
+        output_bit(bit)
+
+def output_run(bytes):
+    # note that "run" is always 2 or more bytes.
+    length = len(bytes)
+    # print "Output run length %d bytes" % length
+
+    if length < 2:
+        raise RuntimeError('Unexpected run length %d' % length)
+    elif length < (2+3): # lengths 2, 3, 4 (3 options)
+        output_integer(length - 1, 2) # 2 bit code: 0 = see next word
+    elif length < (5 + 15): # lengths 5 ... 19 (15 options)
+        output_integer(0, 2)          # 2-bit 0 prefix
+        output_integer(length - 4, 4) # 4-bit code: 0 = see next word
+    elif length < (5 + 15 + 1023): # lengths 20 ... 1043
+        output_integer(0, 2)          # 2-bit 0 prefix
+        output_integer(0, 4)          # 4-bit 0 prefix
+        output_integer(length - 19, 10) # 10-bit code: 0 = end of stream
+    else:
+        raise RuntimeError, 'Encoding overflow: run length %d' % length
+
+    # in all cases we then pack in the bytes
+    for byte in bytes:
+        output_integer(ord(byte), 8) # data values
+
+# def output_run(bytes):
+#     # note that "run" is never an empty list.
+#     length = len(bytes)
+#     # print "Output run length %d bytes" % length
+# 
+#     if length == 0:
+#         raise RuntimeError, 'Unexpected run length 0'
+# 
+#     if length <= 15: # lengths 1 -- 15
+#         # for short runs, which are the common case, we just encode the length directly
+#         output_integer(length, 4)   # 4 bit length code, non-zero
+#     elif length <= (15+1023):
+#         # for longer runs, about 3% of cases, we encode a zero length and then use ten bits
+#         # to encode length-15. The special value 0 is reserved to indicate "end of stream".
+#         output_integer(0, 4)        # 4 bit length code, special value 0 indicates 10-bit code follows
+#         output_integer(length-15, 10) # 10 bit length code
+#     else:
+#         raise RuntimeError, 'Encoding overflow: run length %d' % length
+# 
+#     for byte in bytes:
+#         output_integer(ord(byte), 8) # data values
+
+def output_eos():
+    output_integer(0, 2)
+    output_integer(0, 4)
+    output_integer(0, 10)
+
+# open and load CP/M images
+cpm_image1 = open(sys.argv[1], 'rb').read() # primary image, linked at base 0x0000
+cpm_image2 = open(sys.argv[2], 'rb').read() # comparison image, linked at base 0x8000
+expected_diff = 0x80 # expected byte difference, (0x8000 - 0x0000) >> 8
+
+# check image length matches
+if len(cpm_image1) != len(cpm_image2):
+    raise RuntimeError('CP/M image length mismatch')
+
+# compare images and generate the input for the runtime relocator
+run = []
+for offset, (img_byte, alt_byte) in enumerate(zip(cpm_image1, cpm_image2)):
+    if img_byte == alt_byte:
+        run.append(img_byte)
+    else:
+        # verify expected difference
+        if ord(alt_byte) - ord(img_byte) != expected_diff:
+            raise RuntimeError('Unexpected difference 0x%02x vs 0x%02x at offset 0x%04x',
+                    ord(img_byte), ord(alt_byte), offset)
+        output_run(run)
+        run = [img_byte]
+
+# drain any buffered data
+if run:
+    output_run(run)
+
+# end of stream
+output_eos()
+
+# write out encoded bitstream
+bitstream = get_bitstream()
+open(sys.argv[3], 'wb').write(bitstream)
+print "Encoded bitstream is %d bytes, image is %d bytes, %.1f%% overhead" % (
+        len(bitstream), len(cpm_image1), 100. * len(bitstream) / len(cpm_image1) - 100.)
+
+payload_fd = open(sys.argv[4], 'w')
+payload_fd.write("const unsigned int cpm_image_length = %d;\n" % len(cpm_image1))
+payload_fd.write("const unsigned char cpm_image_data[] = {\n\t")
+
+for n, byte in enumerate(bitstream):
+    payload_fd.write("0x%02x, " % ord(byte))
+    if n % 10 == 9:
+        payload_fd.write("\n\t")
+payload_fd.write("\n};\n");
