@@ -3,10 +3,10 @@ SDAS=sdasz80
 SDLD=sdldz80
 ASOPTS=-fflopzws
 CCOPTS=--std-sdcc99 --no-std-crt0 -mz80 --opt-code-size --max-allocs-per-node 10000 --Werror
-LDOPTS=-n -k /usr/share/sdcc/lib/z80/
+LDOPTS=-n -k /usr/share/sdcc/lib/z80/ -wmx
 
 RUNTIME=cpm22ccp.rel cpm22bdos.rel cpmbios.rel
-INIT=runtime0.rel init.rel relocate.rel cpmimage.rel putchar.rel units.rel bios.rel drives.rel memory.rel
+INIT=bootrom.rel runtime0.rel init.rel relocate.rel cpmimage.rel putchar.rel units.rel bios.rel drives.rel memory.rel
 
 .SUFFIXES:	# delete default suffixes
 .SUFFIXES:	.c .s .ss .inc .rel .ihx .hex
@@ -19,42 +19,30 @@ INIT=runtime0.rel init.rel relocate.rel cpmimage.rel putchar.rel units.rel bios.
 
 
 # all:	cpm.com cpm.ihx cpm.rom
-all:	bootcpm.com
+all:	cpm.com cpm.rom cpm.ihx
 
-bootcpm.ihx:	$(INIT)
-	#$(SDLD) $(LDOPTS) -f bootcpm.lnk
-	$(SDLD) $(LDOPTS) -mwx -i bootcpm.ihx -b _CODE=0x100 -l z80 $(INIT)
+cpm.ihx:	$(INIT)
+	$(SDLD) $(LDOPTS) -i cpm.ihx -b _CODE=0x0000 -l z80 $(INIT)
 
-bootcpm.com:	bootcpm.ihx
+cpm.com:	cpm.ihx
 	srec_cat -disable-sequence-warning \
- 		bootcpm.ihx -intel -crop 0x100 0x8000 -offset -0x100 \
- 		-output bootcpm.com -binary
+ 		cpm.ihx -intel -crop 0x100 0x8000 -offset -0x100 \
+ 		-output cpm.com -binary
 
-# cpm.ihx:	$(CPM)
-# 	$(SDLD) $(LDOPTS) -f cpm.lnk
-# 
-# cpm.rom:	cpm.ihx
-# 	srec_cat -disable-sequence-warning \
-# 		cpm.ihx -intel -fill 0xff 0 0x8000 -crop 0x000 0x200 \
-# 		cpm.ihx -intel -fill 0xff 0 0x8000 -crop 0xe000 0xff00 -offset -0xde00 \
-# 		-fill 0xff 0x2100 0x8000 \
-# 		-output cpm.rom -binary
-# 
-# cpm.com:	cpm.ihx
-# 	srec_cat -disable-sequence-warning \
-# 		cpm.ihx -intel -crop 0x100 0x200 -offset -0x100 \
-# 		cpm.ihx -intel -crop 0xe000 0xff00 -offset -0xdf00 \
-# 		-output cpm.com -binary
+cpm.rom:	cpm.ihx
+	srec_cat -disable-sequence-warning \
+		cpm.ihx -intel -fill 0xFF 0 0x8000 \
+		-output cpm.rom -binary
 
 clean:
-	rm -f *.ihx *.hex *.rel *.map *.bin bootcpm.com *.noi cpm.rom *.lst cpmimage.c *.asm *.sym
+	rm -f *.ihx *.hex *.rel *.map *.bin cpm.com *.noi cpm.rom *.lst cpmimage.c *.asm *.sym
 
 # Link CP/M at two base addresses so we can derive a relocatable version
 cpm-0000.ihx:	$(RUNTIME)
-	$(SDLD) $(LDOPTS) -f cpm-0000.lnk
+	$(SDLD) $(LDOPTS) -i cpm-0000.ihx -b _CPMCCP=0x0000 -b _CPMBDOS=0x0800 -b _CPMBIOS=0x1600 $(RUNTIME)
 
 cpm-8000.ihx:	$(RUNTIME)
-	$(SDLD) $(LDOPTS) -f cpm-8000.lnk
+	$(SDLD) $(LDOPTS) -i cpm-8000.ihx -b _CPMCCP=0x8000 -b _CPMBDOS=0x8800 -b _CPMBIOS=0x9600 $(RUNTIME)
 
 cpm-0000.bin:	cpm-0000.ihx
 	srec_cat -disable-sequence-warning \

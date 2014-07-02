@@ -2,12 +2,14 @@
 ; 2013-12-16, 2014-05-26  William R Sowerbutts
 
         .module runtime0
+        .globl init
         .globl _main
         .globl l__INITIALIZER
         .globl s__INITIALIZED
         .globl s__INITIALIZER
         .globl s__GSFINAL
 
+        .area _BOOTSTRAP
         .area _CODE
         ; this code is loaded at 0x100 by CP/M
 
@@ -72,7 +74,6 @@ depositarg:
         ; when they are first seen, it would appear.
         .area   _TPA
         .area   _HOME
-        .area   _CODE
         .area   _INITIALIZER
         .area   _GSINIT
         .area   _GSFINAL

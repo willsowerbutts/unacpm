@@ -165,6 +165,8 @@ void init_units(void)
     unsigned char unit, i;
     unsigned char unit_count;
 
+    memset(unit_info, 0, sizeof(unit_info));
+
     // get unit count
     reg_in.b.B = 0;
     reg_in.b.C = UNABIOS_BLOCK_GET_TYPE;

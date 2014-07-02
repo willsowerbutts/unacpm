@@ -9,6 +9,14 @@
 
 union regs reg_in, reg_out;
 
+void halt(void)
+{
+    __asm
+        di
+        halt
+    __endasm;
+}
+
 void dump_mem(void *addr, unsigned int length)
 {
     unsigned char *p=(unsigned char*)addr;
@@ -16,12 +24,10 @@ void dump_mem(void *addr, unsigned int length)
 
     a=0;
     while(length--){
+        if(!a)
+            printf("\n%04x: ", (unsigned int)p);
         printf("%02x ", *(p++));
-        a++;
-        if(a==16){
-            printf("\n");
-            a=0;
-        }
+        a = (a + 1) & 0x0F;
     }
 
     printf("\n");
@@ -78,6 +84,21 @@ void test(void)
 }
 #endif
 
+#if 0
+
+#define Z180_IO_BASE (0x40)
+#include <z180/z180.h>
+
+void test(void)
+{
+    reg_in.b.C = 0xFA;
+    reg_in.b.B = 5;
+    bios_call(&reg_out, &reg_in);
+    printf("DE=%02x HL=%02x\n", reg_out.w.DE, reg_out.w.HL);
+    printf("CBAR=%02x BBR=%02x CBR=%02x\n", CBAR, BBR, CBR);
+}
+#endif
+
 void main(int argc, char *argv[])
 {
     unsigned char *target;
@@ -88,7 +109,9 @@ void main(int argc, char *argv[])
 
     printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-02)\n");
 
-    // test();
+#if 0
+    test();
+#endif
 
     if(!init_persist())
         return; // abort if incompatible
@@ -105,17 +128,23 @@ void main(int argc, char *argv[])
     // relocate and load residual component
     target = allocate_memory(cpm_image_length);
 
-    // TODO: WRS -- what is the real reason for requiring page alignment? We
-    // could easily modify relocate_cpm() to do full 16-bit relocation. CP/M
-    // does not appear to require it itself. Asked the N8VEM mailing list if
-    // this is an actual requirement.
-    //
-    // We require CP/M to be page aligned. It is not safe to call
-    // allocate_memory() again after we do this.
+    // If we require CP/M to be page aligned. It is not safe to call
+    // allocate_memory() again after we do this. It is not clear if
+    // CP/M actually needs to be page aligned, I assume it may be for
+    // some applications.
+#if 0
     target = (unsigned char*)(((unsigned int)target) & 0xFF00);
+#endif
+
     printf("\nLoading Residual CP/M at 0x%04X ...", target);
-    relocate_cpm(target);
+    if(relocate_cpm(target) != cpm_image_length){
+        printf("\n** Relocation failed (Residual CP/M image corrupt) **\n");
+        halt();
+    }
     printf(" booting.\n");
+
+    // dump_mem((char*)0x0000, 0x200);
+    // dump_mem((char*)target, 0xFF00-(unsigned int)target);
 
     // boot the residual CP/M system
     boot_cpm(target+BOOT_VECTOR_OFFSET);

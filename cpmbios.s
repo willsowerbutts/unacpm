@@ -1,19 +1,10 @@
 ; CP/M 2.2 CBIOS for UNA BIOS for N8VEM
 ; 2014-06-24  Will Sowerbutts <will@sowerbutts.com>
 ;
-; Based (almost entirely!) on:
+; Based on:
 ;   CBIOS FOR N8VEM
 ;   BY ANDREW LYNCH, WITH INPUT FROM MANY SOURCES
 ;   ROMWBW ADAPTATION BY WAYNE WARTHEN
-
-; TODO:
-; - check UNA BIOS version number on startup
-; - check status byte in each partition entry is not in range 0x01--0x7F,
-;   reject entire device if so(?)
-; - check device size is >= 2MB before examining partition table (or check type?)
-; - where MBR present but no 0x32 partition, use the lowest LBA of
-;   any foreign partition as the extent to compute # slices
-;   - EXCEPT for some as yet to be agreed "protective" partition type
 
      .module cpmbios
 

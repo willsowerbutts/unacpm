@@ -131,6 +131,8 @@ void init_drives(void)
     unsigned char i;
 
     // reset drive mapping
+    memset(drive_info, 0, sizeof(drive_info));
+    // 0 is a valid unit; fix that.
     for(i=0; i<MAXDRIVES; i++)
         drive_info[i].unit = NO_UNIT;
 

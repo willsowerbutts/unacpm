@@ -49,14 +49,15 @@ unsigned int relocate_read_int(unsigned char bits)
     }
 }
 
-void relocate_cpm(unsigned char *dest)
+unsigned int relocate_cpm(unsigned char *dest)
 {
     unsigned char *target;
     unsigned int length;
-    unsigned char page;
+    unsigned int reloc_offset;
+    unsigned int *r;
     bool first;
 
-    page = ((unsigned int)dest) >> 8;
+    reloc_offset = (unsigned int)dest;
     target = dest;
     dataptr = cpm_image_data;
     databit = TOPBIT;
@@ -69,7 +70,7 @@ void relocate_cpm(unsigned char *dest)
             if(!length){
                 length = relocate_read_int(10);
                 if(!length){
-                    return; // end of stream
+                    return (unsigned int)(target - dest); // end of stream
                 }else{
                     length = length + 19;
                 }
@@ -85,7 +86,12 @@ void relocate_cpm(unsigned char *dest)
         if(first){
             first = false;
         }else{
-            *(target++) = relocate_read_byte() + page;
+            // we wrote the low byte in the previous pass
+            // now we write the high byte;
+            *(target++) = relocate_read_byte();
+            // the we relocate the value just written;
+            r = (unsigned int*)(target - 2);
+            *r += reloc_offset;
             length--;
         }
 
