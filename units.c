@@ -99,6 +99,52 @@ const char *driver_name(unsigned char id)
     }
 }
 
+void ram_disk_consider_format(unsigned char num)
+{
+    unsigned char sector, entry, *status, disk_op;
+    unsigned int valid;
+
+    // read the status byte of each CP/M directory entry, count 
+    // how many valid/invalid entries we find.
+    valid = 0;
+    disk_op = UNABIOS_BLOCK_READ;
+    while(true){
+        for(sector=0; sector<16; sector++){ // 256-entry directory is the first 16 sectors
+            // read sector from unit
+            reg_in.b.B = num;
+            reg_in.b.C = UNABIOS_BLOCK_SETLBA;
+            reg_in.w.DE = 0;
+            reg_in.w.HL = sector;
+            if(check_bios_call(&reg_out, &reg_in))
+                return;
+
+            reg_in.b.B = num;
+            reg_in.b.C = disk_op;
+            reg_in.b.L = 1; // single sector
+            reg_in.w.DE = (unsigned int)sector_buffer;
+            if(check_bios_call(&reg_out, &reg_in))
+                return;
+
+            // check the status byte of each entry
+            status = sector_buffer;
+            for(entry=0; entry<16; entry++){
+                if(*status == 0xE5 || *status < 34) // see http://www.cpm8680.com/cpmtools/cpm.htm
+                    valid++;
+                status += 32; // next directory entry
+            }
+        }
+        if(disk_op == UNABIOS_BLOCK_WRITE){ // did we finish the second pass?
+            unit_info[num].flags |= UNIT_FLAG_FORMATTED;
+            return;
+        }
+        if(valid > 128)   // first pass -- more than half valid?
+            return;       // no need to format
+        // first pass -- set up to format
+        disk_op = UNABIOS_BLOCK_WRITE;
+        memset(sector_buffer, 0xe5, 512);
+    }
+}
+
 void unit_parse_mbr(unsigned char num)
 {
     unsigned char p;
@@ -114,17 +160,22 @@ void unit_parse_mbr(unsigned char num)
     reg_in.b.C = UNABIOS_BLOCK_SETLBA;
     reg_in.w.DE = 0;
     reg_in.w.HL = 0;
-    if(check_bios_call(&reg_out, &reg_in))
+    if(check_bios_call(&reg_out, &reg_in)){
+        unit_info[num].sectors = 0;
         return;
+    }
 
     reg_in.b.B = num;
     reg_in.b.C = UNABIOS_BLOCK_READ;
     reg_in.b.L = 1; // single sector
     reg_in.w.DE = (unsigned int)mbr;
-    if(check_bios_call(&reg_out, &reg_in))
+    if(check_bios_call(&reg_out, &reg_in)){
+        unit_info[num].sectors = 0;
         return;
+    }
 
     if(mbr->signature == 0xaa55){
+        unit_info[num].flags |= UNIT_FLAG_MBR_PRESENT;
         for(p=0; p<MBR_ENTRY_COUNT; p++){
             if(part->type == 0x32){ // bingo
                 // printf("[found 0x32]");
@@ -133,12 +184,16 @@ void unit_parse_mbr(unsigned char num)
                 lba_count = part->lba_count;
                 break; // look no further
             }else if(part->type == 0x05 || part->type == 0x0F){ // CHS/LBA extended partition?
+                unit_info[num].flags |= UNIT_FLAG_IGNORED_PARTITION;
                 // ignore these to allow them to be used as "protective partition" purposes
             }else if(part->type){ // any other non-empty foreign partition?
+                unit_info[num].flags |= UNIT_FLAG_FOREIGN_PARTITION;
                 // first sector of this partition sets a ceiling on what we can use for CP/M slices
-                if(part->lba_first < lba_count){
-                    unit_info[num].flags |= UNIT_FLAG_FOREIGN_PARTITION;
-                    lba_count = part->lba_first;
+                // only apply this if we've not found a CP/M partition
+                if(!(unit_info[num].flags & UNIT_FLAG_CPM_PARTITION)){
+                    if(part->lba_first < lba_count){
+                        lba_count = part->lba_first;
+                    }
                 }
             }
             part++; // next partition
@@ -162,7 +217,7 @@ void init_units(void)
 {
     media_t m;
     unsigned char driver;
-    unsigned char unit, i;
+    unsigned char unit, i, flags;
     unsigned char unit_count;
 
     memset(unit_info, 0, sizeof(unit_info));
@@ -179,7 +234,7 @@ void init_units(void)
         unit_count = MAXUNITS;
     }
 
-    printf("\nDisk  Driver   Capacity  Slices   Start LBA\n");
+    printf("\nDisk  Driver   Capacity  Slices   Start LBA  Flags\n");
 
     for(unit=0; unit<unit_count; unit++){
         // set flags
@@ -206,8 +261,10 @@ void init_units(void)
         reg_in.b.C = UNABIOS_BLOCK_GET_CAPACITY;
         reg_in.w.DE = 0;
         check_bios_call(&reg_out, &reg_in);
-        // printf("B=%02x ", reg_out.b.B);
         unit_info[unit].sectors = (((unsigned long)reg_out.w.DE) << 16) | (reg_out.w.HL);
+
+        if(m == MEDIA_RAM)
+            ram_disk_consider_format(unit);
 
         // sliced?
         if(media_sliced(m)){
@@ -217,8 +274,23 @@ void init_units(void)
             unit_info[unit].slice_count = 1;
         }
 
-        printf("%-5s %-8s %8s  %6d  0x%08lX\n", unit_name(unit), driver_name(driver), unit_size(unit), 
+        printf("%-5s %-8s %8s  %6d  0x%08lX  ", 
+                unit_name(unit), driver_name(driver), unit_size(unit), 
                 unit_info[unit].slice_count, unit_info[unit].lba_first);
+
+        // print flags
+        flags = unit_info[unit].flags;
+        if(flags & UNIT_FLAG_MBR_PRESENT)
+            printf("MBR ");
+        if(flags & UNIT_FLAG_CPM_PARTITION)
+            printf("CPM ");
+        if(flags & UNIT_FLAG_FOREIGN_PARTITION)
+            printf("FGN ");
+        if(flags & UNIT_FLAG_IGNORED_PARTITION)
+            printf("IGN ");
+        if(flags & UNIT_FLAG_FORMATTED)
+            printf("(formatted) ");
+        printf("\n");
     }
 
     // mark other units as absent

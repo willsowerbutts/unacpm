@@ -23,8 +23,11 @@ typedef struct {
     unsigned int signature;
 } master_boot_record_t;
 
-#define UNIT_FLAG_CPM_PARTITION       1
-#define UNIT_FLAG_FOREIGN_PARTITION   2
+#define UNIT_FLAG_MBR_PRESENT         1
+#define UNIT_FLAG_CPM_PARTITION       2
+#define UNIT_FLAG_FOREIGN_PARTITION   4
+#define UNIT_FLAG_IGNORED_PARTITION   8
+#define UNIT_FLAG_FORMATTED           16
 
 typedef struct {
     media_t media;              // media type

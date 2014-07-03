@@ -25,9 +25,10 @@ import sys
 #  - longest observed run was length 278.
 #  - ~97% of runs are under 16 bytes in length
 
-# Naive encoding: 1 bit per byte = 12.5% overhead
-# 4-bit, 10-bit encoding: 9.3% overhead
-# 2-bit, 4-bit, 10-bit encoding: 8.3% overhead
+# Naive encoding (using early CBIOS code as test payload);
+#   1 bit per byte = 12.5% overhead
+#   4-bit, 10-bit encoding: 9.3% overhead
+#   2-bit, 4-bit, 10-bit encoding: 8.3% overhead
 
 bitstream = list()
 def output_bit(val):
