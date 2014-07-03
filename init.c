@@ -33,7 +33,7 @@ void dump_mem(void *addr, unsigned int length)
     printf("\n");
 }
 
-#if 0
+#if 1
 void test(void)
 {
     unsigned char unit = 0;
@@ -48,13 +48,16 @@ void test(void)
         printf("Get capacity error: %02x\n", reg_out.b.C);
         return;
     }
-    if(reg_out.w.DE){
+    if(reg_out.w.DE || reg_out.w.HL > 1000){
         printf("Too large to test\n");
         return;
     }
     secmax = reg_out.w.HL;
 
     printf("unit %d testing %d sectors\n", unit, secmax);
+
+    // fill random memory with crap
+    memset((char*)0x8000, 0xe5, 512);
 
     for(sector=0; sector<secmax; sector++){
         printf("Write sector %d\n", sector);
@@ -107,9 +110,10 @@ void main(int argc, char *argv[])
     argc;
     argv;
 
-    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-02)\n");
+    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-03)\n");
 
 #if 0
+    printf("WRS: Erase RAM disk? See MD_INIT in RomWBW source/CBIOS.ASM\n");
     test();
 #endif
 
@@ -137,7 +141,7 @@ void main(int argc, char *argv[])
 #endif
 
     printf("\nLoading Residual CP/M at 0x%04X ...", target);
-    if(relocate_cpm(target) != cpm_image_length){
+    if(!relocate_cpm(target)){
         printf("\n** Relocation failed (Residual CP/M image corrupt) **\n");
         halt();
     }

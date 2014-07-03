@@ -2,10 +2,17 @@
 #include <stdbool.h>
 #include "cpmimage.h"
 
-static unsigned char *dataptr;
-static unsigned char  databit;
+unsigned int cksum;
+const unsigned char *dataptr;
+unsigned char databit;
 #define TOPBIT 128
 
+bool relocate_nextbit(void);
+unsigned char relocate_nextbyte(void);
+
+/*
+ * relocate2.s contains faster assembler implementations of these two functions
+ *
 bool relocate_nextbit(void)
 {
     bool r;
@@ -20,7 +27,7 @@ bool relocate_nextbit(void)
     return r;
 }
 
-unsigned char relocate_read_byte(void)
+unsigned char relocate_nextbyte(void)
 {
     unsigned char out = 0;
     unsigned char bits = 8;
@@ -30,11 +37,14 @@ unsigned char relocate_read_byte(void)
     while(1){
         if(relocate_nextbit())
             out |= 1;
-        if(--bits == 0)
+        if(--bits == 0){
+            cksum += out;
             return out;
+        }
         out = out << 1;
     }
 }
+*/
 
 unsigned int relocate_read_int(unsigned char bits)
 {
@@ -49,7 +59,7 @@ unsigned int relocate_read_int(unsigned char bits)
     }
 }
 
-unsigned int relocate_cpm(unsigned char *dest)
+bool relocate_cpm(unsigned char *dest)
 {
     unsigned char *target;
     unsigned int length;
@@ -61,6 +71,7 @@ unsigned int relocate_cpm(unsigned char *dest)
     target = dest;
     dataptr = cpm_image_data;
     databit = TOPBIT;
+    cksum = 0;
     first = true;
 
     while(1){
@@ -70,7 +81,16 @@ unsigned int relocate_cpm(unsigned char *dest)
             if(!length){
                 length = relocate_read_int(10);
                 if(!length){
-                    return (unsigned int)(target - dest); // end of stream
+                    if((unsigned int)(target - dest) != cpm_image_length){
+                        printf("length mismatch\n");
+                        return false;
+                    }
+                    if(cksum != cpm_image_cksum){
+                        printf("checksum mismatch\n");
+                        return false;
+                    }
+                    // seems OK
+                    return true;
                 }else{
                     length = length + 19;
                 }
@@ -81,14 +101,13 @@ unsigned int relocate_cpm(unsigned char *dest)
             length = length + 1;
         }
 
-        // printf("run length %d\n", length);
-
         if(first){
+            // do not relocate the first run
             first = false;
         }else{
             // we wrote the low byte in the previous pass
             // now we write the high byte;
-            *(target++) = relocate_read_byte();
+            *(target++) = relocate_nextbyte();
             // the we relocate the value just written;
             r = (unsigned int*)(target - 2);
             *r += reloc_offset;
@@ -96,6 +115,6 @@ unsigned int relocate_cpm(unsigned char *dest)
         }
 
         while(length--)
-            *(target++) = relocate_read_byte();
+            *(target++) = relocate_nextbyte();
     }
 }

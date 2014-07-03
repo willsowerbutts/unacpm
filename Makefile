@@ -6,7 +6,8 @@ CCOPTS=--std-sdcc99 --no-std-crt0 -mz80 --opt-code-size --max-allocs-per-node 10
 LDOPTS=-n -k /usr/share/sdcc/lib/z80/ -wmx
 
 RUNTIME=cpm22ccp.rel cpm22bdos.rel cpmbios.rel
-INIT=bootrom.rel runtime0.rel init.rel relocate.rel cpmimage.rel putchar.rel units.rel bios.rel drives.rel memory.rel
+INIT=bootrom.rel runtime0.rel relocate.rel relocate2.rel cpmimage.rel 
+INIT+=putchar.rel units.rel bios.rel drives.rel memory.rel init.rel
 
 .SUFFIXES:	# delete default suffixes
 .SUFFIXES:	.c .s .ss .inc .rel .ihx .hex

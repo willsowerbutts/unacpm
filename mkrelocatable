@@ -126,7 +126,9 @@ if len(cpm_image1) != len(cpm_image2):
 
 # compare images and generate the input for the runtime relocator
 run = []
+cksum = 0
 for offset, (img_byte, alt_byte) in enumerate(zip(cpm_image1, cpm_image2)):
+    cksum = cksum + ord(img_byte)
     if img_byte == alt_byte:
         run.append(img_byte)
     else:
@@ -152,10 +154,12 @@ print "Encoded bitstream is %d bytes, image is %d bytes, %.1f%% overhead" % (
 
 payload_fd = open(sys.argv[4], 'w')
 payload_fd.write("const unsigned int cpm_image_length = %d;\n" % len(cpm_image1))
+payload_fd.write("const unsigned int cpm_image_cksum = %d;\n" % (cksum & 0xFFFF))
 payload_fd.write("const unsigned char cpm_image_data[] = {\n\t")
 
 for n, byte in enumerate(bitstream):
     payload_fd.write("0x%02x, " % ord(byte))
     if n % 10 == 9:
         payload_fd.write("\n\t")
+
 payload_fd.write("\n};\n");
