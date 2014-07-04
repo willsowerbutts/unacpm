@@ -41,7 +41,7 @@ void main(int argc, char *argv[])
     argc;
     argv;
 
-    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-03)\n");
+    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-04C)\n");
 
     if(!init_persist())
         return; // abort if incompatible
@@ -58,10 +58,9 @@ void main(int argc, char *argv[])
     // relocate and load residual component
     target = allocate_memory(cpm_image_length);
 
-#if 0
-    // Force page alignment. Apparently not required.
-    allocate_memory(((unsigned int)target) & 0xFF);             // expand
-    target = (unsigned char*)(((unsigned int)target) & 0xFF00); // align
+#if 1
+    // Force page alignment. Some applications require this.
+    target = allocate_memory(((unsigned int)target) & 0xFF);    // expand, align.
 #endif
 
     printf("\nLoading Residual CP/M at 0x%04X ...", target);
