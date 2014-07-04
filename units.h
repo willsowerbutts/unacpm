@@ -3,7 +3,15 @@
 
 #include <stdbool.h>
 
-typedef enum { MEDIA_NONE, MEDIA_RAM, MEDIA_ROM, MEDIA_HD, MEDIA_OTHER } media_t;
+typedef enum { 
+    MEDIA_NONE=0, 
+    MEDIA_RAM, 
+    MEDIA_ROM, 
+    MEDIA_IDE, 
+    MEDIA_SD,
+    MEDIA_DSK, 
+    MEDIA_OTHER
+} media_t;
 
 #define SECTORS_PER_SLICE 0x4100     // 8.125MB per CP/M slice
 
@@ -43,5 +51,6 @@ extern unit_info_t unit_info[MAXUNITS];
 
 void init_units(void);
 char *unit_name(unsigned char num);
+bool media_sliced(media_t type);
 
 #endif

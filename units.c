@@ -20,14 +20,21 @@ bool check_bios_call( union regs *regout, union regs *regin ) // returns true on
     return false;
 }
 
+const char *media_names[] = {
+    "(none)",
+    "RAM",
+    "ROM",
+    "IDE",
+    "SD",
+    "DSK",
+    "(unknown)"
+};
+
 const char *media_name(media_t type)
 {
-    switch(type){
-        case MEDIA_RAM: return "RAM";
-        case MEDIA_ROM: return "ROM";
-        case MEDIA_HD:  return "HD";
-        default:        return "UNKNOWN";
-    }
+    if(type < (sizeof(media_names) / sizeof(const char*)))
+        return media_names[type];
+    return media_names[0];
 }
 
 char *unit_size(unsigned char num)
@@ -64,7 +71,11 @@ char *unit_name(unsigned char num)
 bool media_sliced(media_t type)
 {
     switch(type){
-        case MEDIA_HD:  return true;
+        case MEDIA_IDE:
+        case MEDIA_SD:
+        case MEDIA_DSK:
+                        return true;
+
         default:        return false;
     }
 }
@@ -79,11 +90,12 @@ media_t driver_id_to_media(unsigned char id, unsigned char flags)
                 return MEDIA_RAM;
         case 0x41:
         case 0x42:
+            return MEDIA_IDE;
         case 0x43:
         case 0x44:
-            return MEDIA_HD;
+            return MEDIA_SD;
         default:
-            return MEDIA_OTHER;
+            return MEDIA_DSK;
     }
 }
 

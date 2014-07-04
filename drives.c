@@ -88,7 +88,7 @@ void prepare_drives(void)
 
         // prepare the DPH
         media = unit->media;
-        if(media == MEDIA_HD){
+        if(media_sliced(unit->media)){
             if(!shared_hdd_dpb){
                 shared_hdd_dpb = allocate_memory(sizeof(dpb_t));
                 memcpy(shared_hdd_dpb, &hdd_dpb_template, sizeof(dpb_t));
@@ -116,12 +116,14 @@ void prepare_drives(void)
 // fallback mapping: map first slice on every device, in order.
 void drives_default_mapping(void)
 {
-    unsigned char i;
+    unsigned char i, d;
 
+    d = 0;
     for(i=0; i<(MAXUNITS < MAXDRIVES ? MAXUNITS : MAXDRIVES); i++){
         if(unit_info[i].media != MEDIA_NONE && unit_info[i].slice_count){
-            drive_info[i].unit = i;
-            drive_info[i].slice = 0;
+            drive_info[d].unit = i;
+            drive_info[d].slice = 0;
+            d++;
         }
     }
 }
