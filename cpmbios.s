@@ -576,7 +576,7 @@ addhla:     add a, l
 bios_seldsk:                ; select disk number (in C) for subsequent disk ops
 dsk_select:
             call dsk_getinf ; C unmodified, B=unit, DE=LBA ptr, HL=DPH ptr
-            ret nz          ; return if invalid drive (A=1, NZ set, HL=0)
+            jr nz, dsk_select_error
             ld a, c         ; A := cpm drive no
             ld (sekdsk), a  ; save it
             ld a, b         ; A := device/unit
@@ -585,6 +585,10 @@ dsk_select:
             ld (sekoff), de ; save LBA pointer
             xor a           ; flag success
             ret             ; normal return, with DPH in HL
+dsk_select_error:           ; user tried to select an invalid disk
+            xor a
+            ld (cdisk), a   ; switch them back to A: to avoid the need to reboot
+            ret             ; return with HL=0 to indicate error
 
 dsk_read:
             ld c, #UNABIOS_BLOCK_READ
