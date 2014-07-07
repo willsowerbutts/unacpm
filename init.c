@@ -17,40 +17,26 @@ void halt(void)
     __endasm;
 }
 
-// void dump_mem(void *addr, unsigned int length)
-// {
-//     unsigned char *p=(unsigned char*)addr;
-//     unsigned char a;
-// 
-//     a=0;
-//     while(length--){
-//         if(!a)
-//             printf("\n%04x: ", (unsigned int)p);
-//         printf("%02x ", *(p++));
-//         a = (a + 1) & 0x0F;
-//     }
-// 
-//     printf("\n");
-// }
-
 void main(int argc, char *argv[])
 {
     unsigned char *target;
 
     // keep sdcc quiet about our (currently) unused arguments
-    argc;
-    argv;
-
-    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-04C)\n");
+    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-06)\n");
 
     if(!init_persist())
         return; // abort if incompatible
 
     // enumerate UNA disk units
     init_units();
+    printf("\n");
 
     // prepare drive map
     init_drives();
+    if(argc > 1){
+        if(drives_load_mapping(argc-1, argv+1))
+            return; // error parsing command line
+    }
 
     // prepare data structures for residual component
     prepare_drives();
@@ -58,10 +44,8 @@ void main(int argc, char *argv[])
     // relocate and load residual component
     target = allocate_memory(cpm_image_length);
 
-#if 1
     // Force page alignment. Some applications require this.
-    target = allocate_memory(((unsigned int)target) & 0xFF);    // expand, align.
-#endif
+    target = allocate_memory(((unsigned int)target) & 0xFF);    // expand, align.  wasteful :(
 
     printf("\nLoading Residual CP/M at 0x%04X ...", target);
     if(!relocate_cpm(target)){

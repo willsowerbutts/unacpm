@@ -59,6 +59,24 @@ unsigned int relocate_read_int(unsigned char bits)
     }
 }
 
+unsigned int relocate_read_length(void)
+{
+    unsigned char i;
+    unsigned int l;
+
+    i = 0;
+    while(true){
+        l = relocate_read_int(cpm_image_encoding[i]);
+        if(l){
+            return (l + cpm_image_offsets[i]);
+        }
+        i++;
+        // check for end of stream
+        if(cpm_image_encoding[i] == 0)
+            return 0;
+    }
+}
+
 bool relocate_cpm(unsigned char *dest)
 {
     unsigned char *target;
@@ -74,33 +92,7 @@ bool relocate_cpm(unsigned char *dest)
     cksum = 0;
     first = true;
 
-    while(1){
-        length = relocate_read_int(2);
-        if(!length){
-            length = relocate_read_int(4);
-            if(!length){
-                length = relocate_read_int(10);
-                if(!length){
-                    if((unsigned int)(target - dest) != cpm_image_length){
-                        printf("length mismatch\n");
-                        return false;
-                    }
-                    if(cksum != cpm_image_cksum){
-                        printf("checksum mismatch\n");
-                        return false;
-                    }
-                    // seems OK
-                    return true;
-                }else{
-                    length = length + 19;
-                }
-            }else{
-                length = length + 4;
-            }
-        }else{
-            length = length + 1;
-        }
-
+    while(length = relocate_read_length()){
         if(first){
             // do not relocate the first run
             first = false;
@@ -117,4 +109,15 @@ bool relocate_cpm(unsigned char *dest)
         while(length--)
             *(target++) = relocate_nextbyte();
     }
+
+    if((unsigned int)(target - dest) != cpm_image_length){
+        printf("length mismatch\n");
+        return false;
+    }
+    if(cksum != cpm_image_cksum){
+        printf("checksum mismatch\n");
+        return false;
+    }
+    // seems OK
+    return true;
 }

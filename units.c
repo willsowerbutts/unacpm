@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <ctype.h>
 #include <string.h>
 #include <stdbool.h>
 #include "units.h"
@@ -27,7 +29,7 @@ const char *media_names[] = {
     "IDE",
     "SD",
     "DSK",
-    "(unknown)"
+    "(unknown)",
 };
 
 const char *media_name(media_t type)
@@ -35,6 +37,25 @@ const char *media_name(media_t type)
     if(type < (sizeof(media_names) / sizeof(const char*)))
         return media_names[type];
     return media_names[0];
+}
+
+unsigned char unit_from_name(char *name)
+{
+    int namelen;
+    media_t m;
+    unsigned char i, n;
+
+    for(m=0; m < (sizeof(media_names) / sizeof(const char*)); m++){
+        namelen = strlen(media_names[m]);
+        if(strncmp(media_names[m], name, namelen) == 0 && isdigit(name[namelen])){
+            i = atoi(&name[namelen]);
+            for(n=0; n<MAXUNITS; n++)
+                if(unit_info[n].media == m && unit_info[n].index == i)
+                    return n;
+        }
+    }
+
+    return NO_UNIT;
 }
 
 char *unit_size(unsigned char num)

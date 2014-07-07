@@ -11,6 +11,7 @@ typedef enum {
     MEDIA_SD,
     MEDIA_DSK, 
     MEDIA_OTHER
+        // also update media_names[] in units.c when adding new entries
 } media_t;
 
 #define SECTORS_PER_SLICE 0x4100     // 8.125MB per CP/M slice
@@ -46,11 +47,13 @@ typedef struct {
     unsigned int slice_count;   // number of usable slices on device (only for sliced media types)
 } unit_info_t;
 
+#define NO_UNIT 0xFF
 #define MAXUNITS 10
 extern unit_info_t unit_info[MAXUNITS];
 
 void init_units(void);
 char *unit_name(unsigned char num);
+unsigned char unit_from_name(char *name);
 bool media_sliced(media_t type);
 
 #endif

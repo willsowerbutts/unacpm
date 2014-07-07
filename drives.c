@@ -1,6 +1,8 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <ctype.h>
 #include "memory.h"
 #include "drives.h"
 #include "units.h"
@@ -50,6 +52,17 @@ const dpb_t hdd_dpb_template = {
 //     printf("\tsystem_tracks=%04x\n", dpb->system_tracks);
 // }
 
+unsigned char drives_count_valid(void)
+{
+    unsigned char i;
+
+    for(i=0; i<MAXDRIVES; i++)
+        if(drive_info[i].unit == NO_UNIT)
+            break;
+
+    return i;
+}
+
 void prepare_drives(void)
 {
     unsigned char i, valid;
@@ -59,12 +72,11 @@ void prepare_drives(void)
     media_t media;
     dph_t *dph;
 
-    // we stop at the first invalid drive
-    valid = 0;
-    for(i=0; i<MAXDRIVES; i++)
-        if(drive_info[i].unit == NO_UNIT)
-            break;
-    valid = i;
+    valid = drives_count_valid();
+    if(valid == 0){
+        drives_default_mapping();
+        valid = drives_count_valid();
+    }
 
     cpm_dirbuf = allocate_memory(128); // directory scratch area
 
@@ -73,8 +85,6 @@ void prepare_drives(void)
     persist->drive_map = drive;
 
     info = drive_info;
-
-    printf("\n");
     
     for(i=0; i<valid; i++){
         unit = &unit_info[info->unit];
@@ -137,6 +147,55 @@ void init_drives(void)
     // 0 is a valid unit; fix that.
     for(i=0; i<MAXDRIVES; i++)
         drive_info[i].unit = NO_UNIT;
+}
 
-    drives_default_mapping();
+bool drives_load_mapping(int argc, char **argv)
+{
+    bool errors, fail;
+    unsigned char drive, unit, i, d;
+    unit_info_t *u;
+    char *p;
+    unsigned int slice;
+
+    drive = 0;
+    errors = false;
+
+    for(i=0; i<argc; i++){
+        fail = false;
+        unit = unit_from_name(argv[i]);
+        if(unit == NO_UNIT){
+            printf("\"%s\": Cannot find disk\n", argv[i]);
+            fail = true;
+        }else{
+            u = &unit_info[unit];
+            slice = 0;
+            p = strchr(argv[i], ':');
+            if(!p)
+                p = strchr(argv[i], '.'); // alternative
+            if(p && media_sliced(u->media)){
+                p++;
+                slice = atoi(p);
+            }
+            if(slice >= u->slice_count){
+                printf("\"%s\": Slice out of range\n", argv[i]);
+                fail = true;
+            }else{
+                for(d=0; d<drive; d++){
+                    if(drive_info[d].unit == unit &&
+                            drive_info[d].slice == slice){
+                        printf("\"%s\": Already assigned\n", argv[i]);
+                        fail = true;
+                    }
+                }
+            }
+            if(!fail && drive < MAXDRIVES){
+                drive_info[drive].unit = unit;
+                drive_info[drive].slice = slice;
+                drive++;
+            }
+        }
+        errors = errors || fail;
+    }
+
+    return errors;
 }

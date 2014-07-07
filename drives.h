@@ -2,9 +2,9 @@
 #define __DRIVES_DOT_H__
 
 void init_drives(void);
+bool drives_load_mapping(int argc, char **argv);
+void drives_default_mapping(void);
 void prepare_drives(void);
-
-#define NO_UNIT 0xFF
 
 typedef struct {
     unsigned char unit;
