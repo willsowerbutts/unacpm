@@ -600,9 +600,7 @@ dsk_write:
 
 dsk_io:
             ; assumes all device use LBA
-            push ix         ; save IX register
-            push bc         ; save function number for later
-
+            push bc             ; save function number for later
 
             ; coerce track/sector into DE:HL as 0000:ttts
             ld hl, (hsttrk)
@@ -618,6 +616,7 @@ dsk_io3:
             ld de, #0           ; DE:HL now has slice relative LBA
 
             ; LBA is in DE:HL is relative to start of slice; now add in the unit partition/slice offset
+            push ix             ; save IX register
             ld ix, (hstoff)     ; pointer to LBA of first block
 
             ; 32-bit addition  DE:HL = DE:HL + (IX)
@@ -636,15 +635,17 @@ dsk_io3:
             ld a, d
             adc a, 3(ix)
             ld d, a
+            pop ix              ; restore IX register
 
             ld c, #UNABIOS_BLOCK_SETLBA ; function
             ld a, (hstdu)       ; unit number
             ld b, a
             rst #UNABIOS_CALL   ; UNA BIOS call: set LBA for next transfer
+            pop hl              ; recover function number, una_map_ubios does not destroy HL
+            jr nz, ioerror_c    ; handle any error condition arising from set LBA BIOS call
 
-            pop hl              ; una_map_ubios does not destroy HL
             call una_map_ubios  ; pushes page number onto stack
-            ld c, l             ; recover function number (read/write) into C
+            ld c, l             ; move function number (read/write) into C
 
             ld a, (hstdu)       ; unit number ...
             ld b, a             ; ... in B
@@ -655,18 +656,18 @@ dsk_io3:
 
             call una_unmap_ubios; pops from our stack
 
-            pop ix              ; restore IX register
             xor a               ; A=0
             cp h                ; io result was 0?
             ret z               ; yes - return A=0 on success
-ioerror:    ; this section is used by initialisation for I/O errors also
-            ld de, #ioerrmsg    ; no - report error
+ioerror:    ld de, #ioerrmsg    ; no - report error
             call printstring
             ld a, h
             call printahex
             xor a
             inc a               ; clears Z flag
             ret                 ; return A=1, flags NZ on error
+ioerror_c:  ld h, c             ; move error code from C into H
+            jr ioerror          ; jump into main ioerror routine
 
 printstring:    ; print string in DE
             push bc
