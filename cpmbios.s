@@ -76,12 +76,14 @@ WRT_UNA                     = 2         ; write to unallocated
 iobyte                      = 3         ; intel "standard" i/o byte
 cdisk                       = 4         ; current disk/user number
 
-; Addresses of the fields in the persist_t structure at the top of memory
+; Addresses of the fields in the struct persist_t at the top of memory
+; remember it's upside-down here.
 persist_signature           = 0xFF00 - 2
 persist_version             = persist_signature - 1
 bufadr                      = persist_version - 2
 ccpadr                      = bufadr - 2
-drvcnt                      = ccpadr - 1
+config_unit                 = ccpadr - 1
+drvcnt                      = config_unit - 1
 drvmap                      = drvcnt - 2
 
 ; the CP/M BIOS function call dispatch table

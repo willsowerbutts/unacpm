@@ -37,5 +37,8 @@ void boot_cpm(void *target);
 #define UNABIOS_BLOCK_WRITE           0x43   // C register (unit number in B, buffer address in DE, sector count in L)
 #define UNABIOS_BLOCK_GET_CAPACITY    0x45   // C register (unit number in B, DE=0 or pointer to 512-byte buffer)
 #define UNABIOS_BLOCK_GET_TYPE        0x48   // C register (unit number in B)
+#define UNABIOS_BOOTHISTORY           0xFC   // C register (subfunction in B)
+#define UNABIOS_HISTORY_GET           0x00   //   B register (BOOTHISTORY subfunction)
+#define UNABIOS_HISTORY_SET           0x01   //   B register (BOOTHISTORY subfunction, DE=page number, L=unit)
 
 #endif

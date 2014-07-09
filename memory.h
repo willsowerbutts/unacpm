@@ -10,10 +10,13 @@ bool init_persist(void);
 #define PERSIST_SIGNATURE 0x1653
 #define PERSIST_VERSION   0x01
 
+// keep this in sync with cpmbios.s (search for "persist_t")
 typedef struct {
-    // add new entries at the start of this structure
+    // data from init to residual (not versioned)
     drive_map_t *drive_map;         // drvmap
     unsigned char drive_count;      // drvcnt
+    // data that we persist between sessions (versioned)
+    unsigned char config_unit;      // config_unit
     void *ubios_ccp_clone;          // ccpadr
     void *ubios_sector_buffer;      // bufadr
     unsigned char version;          // persist_version

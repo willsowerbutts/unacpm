@@ -3,7 +3,7 @@
 
         .module runtime0
         .globl init
-        .globl _main
+        .globl _cpminit
         .globl l__INITIALIZER
         .globl s__INITIALIZED
         .globl s__INITIALIZER
@@ -19,54 +19,23 @@ init:
         ; Initialise global variables
         call    gsinit
 
-        ; Parse the command line
-        ld hl, #0x0081          ; first byte of command line
-        ld ix, #(argv_ptr+2)    ; pointer to argument list in IX
-        ld iy, #1               ; we always have 1 argument (program name)
-
-cmdnextarg:
-        ld b, h                 ; store pointer to start of argument in BC
-        ld c, l
-
-cmdnextbyte:
-        ld a, (hl)              ; read next command line byte
-        or a                    ; NUL -- end of command line?
-        jr z, endcmdline
-        cp #' '                 ; space -- end of this argument?
-        jr z, cmdgotone
-        inc hl
-        jr cmdnextbyte          ; loop
-
-cmdgotone:
-        xor a                   ; replace space with NUL
-        ld (hl), a
-        call depositarg
-        inc hl
-        jr cmdnextarg
-
-endcmdline:
-        call depositarg         ; deposit final argument
-        ld hl, #argv_ptr        ; pointer to argument list
-        push hl                 ; argv
-        push iy                 ; argc
+        ; Null terminate the command line
+        ld hl, #0x0080          ; number of bytes in command line
+        ld a, (hl)              ; load byte count
+        inc hl                  ; HL points at first byte (0x0081)
+        push hl                 ; put on stack (argument to _cpminit)
+        add a, l                ; advance to last byte
+        or #0x80                ; ensure we do not wrap
+        ld l, a                 ; back to L
+        xor a                   ; make a zero
+        ld (hl), a              ; put terminator in place
     
-        ; Call the C main() routine
-        call _main
+        ; Call into the C code
+        call _cpminit
     
-        ; Terminate if main() returns, via BDOS, which is hopefully present
+        ; Terminate if main() returns, via BDOS, which is hopefully still present
         ld  c, #0
         call 5
-
-depositarg:
-        ld a, (bc)              ; is the argument empty?
-        or a
-        ret z                   ; it was empty -- no action
-        ld 0(ix), c             ; store pointer
-        ld 1(ix), b
-        inc ix                  ; inc argv
-        inc ix
-        inc iy                  ; inc argc
-        ret
     
         ; Ordering of segments for the linker.
         ; WRS: Note we list all our segments here, even though
@@ -86,12 +55,6 @@ depositarg:
 
 ; ----------------------------------------
         .area   _STACK
-        ; we keep argv[] in here as well, it grows up while the stack grows down
-progname: 
-        .ascii "CPM"
-        .db 0
-argv_ptr:
-        .dw #progname ; first entry of argv vector
         .ds 256   ; stack memory
 init_stackptr:    ; this is the last thing the booster code will copy
 

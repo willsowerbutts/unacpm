@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "units.h"
 #include "memory.h"
 #include "bios.h"
 
@@ -38,6 +39,7 @@ bool init_persist(void)
             return false;
         persist->drive_count = 0;
         persist->drive_map = 0;
+        persist->config_unit = NO_UNIT;
     }else{
         if(persist->version != PERSIST_VERSION){
             printf("Persistent data: Incompatible version!\n");

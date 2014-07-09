@@ -1,10 +1,15 @@
 #ifndef __DRIVES_DOT_H__
 #define __DRIVES_DOT_H__
 
+#include <stdbool.h>
+
 void init_drives(void);
-bool drives_load_mapping(int argc, char **argv);
+bool drives_extend_mapping(const char *device);
+void drives_mapping_to_string(char *buffer, unsigned char maxlen);
 void drives_default_mapping(void);
 void prepare_drives(void);
+void print_to_space(const char *p);
+unsigned char drives_count_valid(void);
 
 typedef struct {
     unsigned char unit;

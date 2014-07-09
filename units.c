@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include "units.h"
 #include "bios.h"
+#include "config.h"
 
 unit_info_t unit_info[MAXUNITS];
 
@@ -39,7 +40,7 @@ const char *media_name(media_t type)
     return media_names[0];
 }
 
-unsigned char unit_from_name(char *name)
+unsigned char unit_from_name(const char *name)
 {
     int namelen;
     media_t m;
@@ -95,9 +96,9 @@ bool media_sliced(media_t type)
         case MEDIA_IDE:
         case MEDIA_SD:
         case MEDIA_DSK:
-                        return true;
-
-        default:        return false;
+            return true;
+        default:        
+            return false;
     }
 }
 
@@ -132,6 +133,29 @@ const char *driver_name(unsigned char id)
     }
 }
 
+bool xfer_sector(unsigned char num, unsigned char lba, unsigned char disk_op)
+{
+    reg_in.b.B = num;
+    reg_in.b.C = UNABIOS_BLOCK_SETLBA;
+    reg_in.w.DE = 0;
+    reg_in.w.HL = lba;
+    if(check_bios_call(&reg_out, &reg_in)){
+        unit_info[num].sectors = 0;
+        return false;
+    }
+
+    reg_in.b.B = num;
+    reg_in.b.C = disk_op;
+    reg_in.b.L = 1; // single sector
+    reg_in.w.DE = (unsigned int)sector_buffer;
+    if(check_bios_call(&reg_out, &reg_in)){
+        unit_info[num].sectors = 0;
+        return false;
+    }
+
+    return true;
+}
+
 void ram_disk_consider_format(unsigned char num)
 {
     unsigned char sector, entry, *status, disk_op;
@@ -143,19 +167,8 @@ void ram_disk_consider_format(unsigned char num)
     disk_op = UNABIOS_BLOCK_READ;
     while(true){
         for(sector=0; sector<16; sector++){ // 256-entry directory is the first 16 sectors
-            // read sector from unit
-            reg_in.b.B = num;
-            reg_in.b.C = UNABIOS_BLOCK_SETLBA;
-            reg_in.w.DE = 0;
-            reg_in.w.HL = sector;
-            if(check_bios_call(&reg_out, &reg_in))
-                return;
-
-            reg_in.b.B = num;
-            reg_in.b.C = disk_op;
-            reg_in.b.L = 1; // single sector
-            reg_in.w.DE = (unsigned int)sector_buffer;
-            if(check_bios_call(&reg_out, &reg_in))
+            // read/write sector from unit
+            if(!xfer_sector(num, sector, disk_op))
                 return;
 
             // check the status byte of each entry
@@ -188,24 +201,9 @@ void unit_parse_mbr(unsigned char num)
     lba_first = 0;
     lba_count = unit_info[num].sectors;
 
-    // read first sector from unit
-    reg_in.b.B = num;
-    reg_in.b.C = UNABIOS_BLOCK_SETLBA;
-    reg_in.w.DE = 0;
-    reg_in.w.HL = 0;
-    if(check_bios_call(&reg_out, &reg_in)){
-        unit_info[num].sectors = 0;
+    // read first sector from unit into buffer
+    if(!xfer_sector(num, 0, UNABIOS_BLOCK_READ))
         return;
-    }
-
-    reg_in.b.B = num;
-    reg_in.b.C = UNABIOS_BLOCK_READ;
-    reg_in.b.L = 1; // single sector
-    reg_in.w.DE = (unsigned int)mbr;
-    if(check_bios_call(&reg_out, &reg_in)){
-        unit_info[num].sectors = 0;
-        return;
-    }
 
     if(mbr->signature == 0xaa55){
         unit_info[num].flags |= UNIT_FLAG_MBR_PRESENT;
@@ -246,14 +244,69 @@ void unit_parse_mbr(unsigned char num)
     unit_info[num].slice_count = lba_count;
 }
 
+config_block_t *unit_load_configuration(unsigned char num)
+{
+    config_block_t *config = (config_block_t*)sector_buffer;
+
+    if(num < MAXUNITS && media_sliced(unit_info[num].media) && unit_info[num].slice_count){
+        // load second 512-byte sector from the system track of this unit's first slice
+        xfer_sector(num, 1, UNABIOS_BLOCK_READ);
+        if(config->signature == CONFIG_SIGNATURE)
+            return config;
+    }
+
+    return NULL;
+}
+
+bool unit_save_configuration(unsigned char num, config_block_t *cfg)
+{
+    config_block_t *target = (config_block_t*)sector_buffer;
+
+    if(!(num < MAXUNITS && media_sliced(unit_info[num].media) && unit_info[num].slice_count))
+        return false;
+
+    // load second 512-byte sector from the system track of this unit's first slice
+    if(!xfer_sector(num, 1, UNABIOS_BLOCK_READ))
+        return false;
+
+    // merge in the config block
+    memcpy(target, cfg, sizeof(config_block_t));
+
+    // write updated sector back to disk
+    if(!xfer_sector(num, 1, UNABIOS_BLOCK_WRITE))
+        return false;
+
+    return true;
+}
+
+unsigned char find_unit_with_flags(unsigned char flags)
+{
+    unsigned char i;
+
+    for(i=0; i<MAXUNITS; i++)
+        if((unit_info[i].flags & flags) == flags) // all flags must be set
+            return i;
+
+    return NO_UNIT;
+}
+
 void init_units(void)
 {
     media_t m;
     unsigned char driver;
-    unsigned char unit, i, flags;
+    unsigned char unit, i;
     unsigned char unit_count;
+    unit_info_t *u;
 
     memset(unit_info, 0, sizeof(unit_info));
+
+    // flag the unit we booted from
+    reg_in.b.C = UNABIOS_BOOTHISTORY;
+    reg_in.b.B = UNABIOS_HISTORY_GET;
+    if(!check_bios_call(&reg_out, &reg_in)){
+        if(reg_out.b.L < MAXUNITS)
+            unit_info[reg_out.b.L].flags |= UNIT_FLAG_BOOTED;
+    }
 
     // get unit count
     reg_in.b.B = 0;
@@ -267,11 +320,13 @@ void init_units(void)
         unit_count = MAXUNITS;
     }
 
-    printf("\nDisk  Driver   Capacity  Slices   Start LBA  Flags\n");
+    printf("\nUnit Disk  Driver   Capacity  Slices   Start LBA  Flags\n");
 
     for(unit=0; unit<unit_count; unit++){
+        u = &unit_info[unit];
+
         // set flags
-        unit_info[unit].flags = 0;
+        u->flags = 0;
 
         // get type information
         reg_in.b.B = unit;
@@ -282,19 +337,19 @@ void init_units(void)
         // media type
         driver = reg_out.b.D;
         m = driver_id_to_media(driver, reg_out.b.H);
-        unit_info[unit].media = m;
+        u->media = m;
 
         // compute index
-        unit_info[unit].index = 0;
+        u->index = 0;
         for(i=0; i<unit; i++)
             if(unit_info[i].media == m)
-                unit_info[unit].index++;
+                u->index++;
 
         // get capacity
         reg_in.b.C = UNABIOS_BLOCK_GET_CAPACITY;
         reg_in.w.DE = 0;
-        check_bios_call(&reg_out, &reg_in);
-        unit_info[unit].sectors = (((unsigned long)reg_out.w.DE) << 16) | (reg_out.w.HL);
+        if(!check_bios_call(&reg_out, &reg_in))
+            u->sectors = (((unsigned long)reg_out.w.DE) << 16) | (reg_out.w.HL);
 
         if(m == MEDIA_RAM)
             ram_disk_consider_format(unit);
@@ -302,26 +357,32 @@ void init_units(void)
         // sliced?
         if(media_sliced(m)){
             unit_parse_mbr(unit);
+            if(u->slice_count)
+                if(unit_load_configuration(unit))
+                    u->flags |= UNIT_FLAG_CONFIG_PRESENT;
         }else{
-            unit_info[unit].lba_first = 0;
-            unit_info[unit].slice_count = 1;
+            u->lba_first = 0;
+            u->slice_count = 1;
         }
 
-        printf("%-5s %-8s %8s  %6d  0x%08lX  ", 
-                unit_name(unit), driver_name(driver), unit_size(unit), 
-                unit_info[unit].slice_count, unit_info[unit].lba_first);
+        printf("%-4d %-5s %-8s %8s  %6d  0x%08lX  ", 
+                unit, unit_name(unit), driver_name(driver), unit_size(unit), 
+                u->slice_count, u->lba_first);
 
         // print flags
-        flags = unit_info[unit].flags;
-        if(flags & UNIT_FLAG_MBR_PRESENT)
+        if(u->flags & UNIT_FLAG_MBR_PRESENT)
             printf("MBR ");
-        if(flags & UNIT_FLAG_CPM_PARTITION)
+        if(u->flags & UNIT_FLAG_CPM_PARTITION)
             printf("CPM ");
-        if(flags & UNIT_FLAG_FOREIGN_PARTITION)
+        if(u->flags & UNIT_FLAG_FOREIGN_PARTITION)
             printf("FGN ");
-        if(flags & UNIT_FLAG_IGNORED_PARTITION)
+        if(u->flags & UNIT_FLAG_IGNORED_PARTITION)
             printf("IGN ");
-        if(flags & UNIT_FLAG_FORMATTED)
+        if(u->flags & UNIT_FLAG_CONFIG_PRESENT)
+            printf("CFG ");
+        if(u->flags & UNIT_FLAG_BOOTED)
+            printf("BOOT ");
+        if(u->flags & UNIT_FLAG_FORMATTED)
             printf("(formatted) ");
         printf("\n");
     }

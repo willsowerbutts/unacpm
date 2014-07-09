@@ -7,7 +7,7 @@ LDOPTS=-n -k /usr/share/sdcc/lib/z80/ -wmx
 
 RUNTIME=cpm22ccp.rel cpm22bdos.rel cpmbios.rel
 INIT=bootrom.rel runtime0.rel relocate.rel relocate2.rel cpmimage.rel 
-INIT+=putchar.rel units.rel bios.rel drives.rel memory.rel init.rel
+INIT+=putchar.rel units.rel bios.rel drives.rel memory.rel config.rel init.rel
 
 .SUFFIXES:	# delete default suffixes
 .SUFFIXES:	.c .s .ss .inc .rel .ihx .hex
@@ -20,7 +20,7 @@ INIT+=putchar.rel units.rel bios.rel drives.rel memory.rel init.rel
 
 
 # all:	cpm.com cpm.ihx cpm.rom
-all:	cpm.com cpm.rom cpm.ihx
+all:	cpm.com cpm.rom cpm.ihx assign.com
 
 cpm.ihx:	$(INIT)
 	$(SDLD) $(LDOPTS) -i cpm.ihx -b _CODE=0x0000 -l z80 $(INIT)
@@ -34,9 +34,17 @@ cpm.rom:	cpm.ihx
 	srec_cat -disable-sequence-warning \
 		cpm.ihx -intel -fill 0xFF 0 0x8000 \
 		-output cpm.rom -binary
+	
+assign.ihx:	assign.rel
+	$(SDLD) $(LDOPTS) -i assign.ihx -b _CODE=0x8000 assign.rel
+
+assign.com:	assign.ihx
+	srec_cat -disable-sequence-warning \
+ 		assign.ihx -intel -crop 0x8000 0x10000 -offset -0x8000 \
+ 		-output assign.com -binary
 
 clean:
-	rm -f *.ihx *.hex *.rel *.map *.bin cpm.com *.noi cpm.rom *.lst cpmimage.c *.asm *.sym
+	rm -f *.ihx *.hex *.rel *.map *.bin cpm.com *.noi cpm.rom *.lst cpmimage.c *.asm *.sym assign.com
 
 # Link CP/M at two base addresses so we can derive a relocatable version
 cpm-0000.ihx:	$(RUNTIME)
@@ -56,4 +64,4 @@ cpm-8000.bin:	cpm-8000.ihx
 		-output cpm-8000.bin -binary
 
 cpmimage.c:	cpm-0000.bin cpm-8000.bin
-	./mkrelocatable cpm-0000.bin cpm-8000.bin cpm-reloc.bin cpmimage.c
+	./mkrelocatable.py cpm-0000.bin cpm-8000.bin cpm-reloc.bin cpmimage.c

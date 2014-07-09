@@ -38,20 +38,6 @@ const dpb_t hdd_dpb_template = {
     16          // unsigned int  system_tracks;
 };
 
-// void dump_dpb(dpb_t *dpb)
-// {
-//     printf("DPB @ 0x%04X:\n", dpb);
-//     printf("\tsectors_per_track=%04x\n", dpb->sectors_per_track);
-//     printf("\tblock_shift_factor=%02x\n", dpb->block_shift_factor);
-//     printf("\tblock_mask=%02x\n", dpb->block_mask);
-//     printf("\textent_mask=%02x\n", dpb->extent_mask);
-//     printf("\tblock_count=%04x\n", dpb->block_count);
-//     printf("\tdirent_count=%04x\n", dpb->dirent_count);
-//     printf("\tdirent_alloc_vector=%04x\n", dpb->dirent_alloc_vector);
-//     printf("\tcheck_vector_size=%04x\n", dpb->check_vector_size);
-//     printf("\tsystem_tracks=%04x\n", dpb->system_tracks);
-// }
-
 unsigned char drives_count_valid(void)
 {
     unsigned char i;
@@ -111,7 +97,7 @@ void prepare_drives(void)
             if(dph->dpb->block_count & 0xff00)
                 dph->dpb->extent_mask = 0;
         }else{
-            printf("Unsupported media type %02x: ", media); // append Drive X: ... info to this output line
+            printf("Unsupported media type %02x: ", media);
         }
         dph->allocation_vector = allocate_memory((dph->dpb->block_count >> 3)+1);
 
@@ -149,53 +135,98 @@ void init_drives(void)
         drive_info[i].unit = NO_UNIT;
 }
 
-bool drives_load_mapping(int argc, char **argv)
+void print_to_space(const char *p)
 {
-    bool errors, fail;
-    unsigned char drive, unit, i, d;
-    unit_info_t *u;
-    char *p;
+    putchar('"');
+    while(*p){
+        if(isspace(*p))
+            break;
+        putchar(*p);
+        p++;
+    }
+    putchar('"');
+}
+
+// parse a drive name, append it to the existing mapping.
+// should stop at a NUL terminator or space character.
+bool drives_extend_mapping(const char *device)
+{
+    const char *p;
+    unsigned char unit, drive;
     unsigned int slice;
+    unit_info_t *u;
 
-    drive = 0;
-    errors = false;
-
-    for(i=0; i<argc; i++){
-        fail = false;
-        unit = unit_from_name(argv[i]);
-        if(unit == NO_UNIT){
-            printf("\"%s\": Cannot find disk\n", argv[i]);
-            fail = true;
-        }else{
-            u = &unit_info[unit];
-            slice = 0;
-            p = strchr(argv[i], ':');
-            if(!p)
-                p = strchr(argv[i], '.'); // alternative
-            if(p && media_sliced(u->media)){
-                p++;
-                slice = atoi(p);
-            }
-            if(slice >= u->slice_count){
-                printf("\"%s\": Slice out of range\n", argv[i]);
-                fail = true;
-            }else{
-                for(d=0; d<drive; d++){
-                    if(drive_info[d].unit == unit &&
-                            drive_info[d].slice == slice){
-                        printf("\"%s\": Already assigned\n", argv[i]);
-                        fail = true;
-                    }
-                }
-            }
-            if(!fail && drive < MAXDRIVES){
-                drive_info[drive].unit = unit;
-                drive_info[drive].slice = slice;
-                drive++;
-            }
-        }
-        errors = errors || fail;
+    unit = unit_from_name(device);
+    if(unit == NO_UNIT){
+        print_to_space(device);
+        printf(": Cannot find disk\n");
+        return false;
     }
 
-    return errors;
+    u = &unit_info[unit];
+
+    slice = 0;
+    p = device;
+    while(true){
+        if(!*p || isspace(*p))
+            break;
+        if(*p == '.' || *p == ':'){
+            slice = atoi(p+1);
+            break;
+        }
+        p++;
+    }
+
+    if(slice >= u->slice_count){
+        print_to_space(device);
+        printf(": Slice out of range\n");
+        return false;
+    }
+
+    for(drive=0; drive<MAXDRIVES; drive++){
+        if(drive_info[drive].unit == unit && drive_info[drive].slice == slice){
+            print_to_space(device);
+            printf(": Already assigned\n");
+            return false;
+        }
+    }
+
+    for(drive=0; drive<MAXDRIVES; drive++){
+        if(drive_info[drive].unit == NO_UNIT){
+            drive_info[drive].unit = unit;
+            drive_info[drive].slice = slice;
+            return true; // success
+        }
+    }
+
+    print_to_space(device);
+    printf(": All drives already assigned\n");
+    return false;
+}
+
+void drives_mapping_to_string(char *buffer, unsigned char maxlen)
+{
+    unsigned char o, i, l, valid;
+    drive_t *info;
+    char drivename[16];
+
+    o = 0;
+    valid = drives_count_valid();
+    info = drive_info;
+
+    memset(buffer, 0, maxlen);
+
+    for(i=0; i<valid; i++){
+        if(info->slice)
+            l = sprintf(drivename, "%s.%d", unit_name(info->unit), info->slice);
+        else
+            l = sprintf(drivename, "%s", unit_name(info->unit));
+        if(o+l+1 < maxlen){
+            if(o)
+                buffer[o++] = ' ';
+            memcpy(buffer+o, drivename, l);
+            o += l;
+        }
+        info++;
+    }
 }

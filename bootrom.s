@@ -46,10 +46,14 @@ UNABIOS_BLOCK_GET_TYPE      = 0x48      ; C register (unit number in B)
 ; memory values in RAM during bootstrap
 ; we can use 0x8000 -- 0x803F which is the vector area in ROM, unused in the RAM copy
 copyaddr                    = 0x8000    ; 1 byte
+bootflag                    = 0x8001    ; 1 byte
 
 ; buffer
-bouncebuffer                = 0x9000
+bouncebuffer                = 0x8100
 bouncesize                  = 0x2000    ; must be a factor of 0x8000
+
+stackbase                   = 0xa100
+stacktop                    = 0xa200
 
         .area _CODE
 zero:
@@ -115,13 +119,24 @@ zero:
         halt
         halt
         ; we are now at address 0x40
+cpm_bootstrap:
+        ; "warm" boot entry vector in ROM, called by ASSIGN.COM program
+        ; command line remains in user memory at 0x80 ... 0x100. We set a flag to preserve it.
+        ld a, #0x01 ; warm boot: overwrite RAM from 0x0100 upwards, preserving the CP/M command line
+        jr writecopyaddr
 rom_bootstrap:
-        ld sp, #UNABIOS_STUB_START      ; put stack underneath BIOS stub
+        ; "cold" boot from ROM
+        xor a ; cold boot: overwrite all RAM from 0x0000 upwards
+writecopyaddr:
+        ld (copyaddr), a
+        ld (bootflag), a
+        ld sp, #stacktop                ; set up stack
 
         ; copy ourselves into top half of RAM
-        ld de, #0x8000                  ; to RAM
-        ld hl, #0x0000                  ; from ROM
-        ld bc, #0x100                   ; copy entire bootstrap
+        ; do not overwrite first few bytes (cold/warm boot flag)
+        ld de, #0x8010                  ; to RAM
+        ld hl, #0x0010                  ; from ROM
+        ld bc, #0x100-0x10              ; copy entire bootstrap
         ldir
 
 ; ----------------------------------------------------------------------------------------------------
@@ -130,15 +145,12 @@ rom_bootstrap:
 
         jp rom_continue+0x8000 ; jump to copy of next instruction, in RAM
 rom_continue:
-        xor a                           ; start copying at 0x0000
-        ld (copyaddr), a
-
 rom_copyloop:
+        ld bc, #bouncesize
         ld de, #bouncebuffer            ; to high memory bounce buffer, above us in RAM
+        ld l, #0
         ld a, (copyaddr)
         ld h, a                         ; from (copyaddr << 8) in ROM.
-        ld l, #0
-        ld bc, #bouncesize
         ldir                            ; copy
 
         ; get the page number for the user memory bank
@@ -149,12 +161,16 @@ rom_copyloop:
         rst #UNABIOS_CALL               ; map in EXEC_PAGE
         push de                         ; save ROM page number
 
-        ld a, (copyaddr)                ; to low RAM
-        ld d, a
-        ld e, #0
         ld hl, #bouncebuffer            ; from high memory bounce buffer, above us
         ld bc, #bouncesize
-        ldir                            ; copy
+        ld e, #0
+        ld a, (copyaddr)                ; to low RAM
+        ld d, a
+        cp #1                           ; copying to 0x0100?
+        jp nz, gocopy1+0x8000
+        dec b                           ; reduce size 0x100 bytes so copyaddr increases just as if we started at zero all along
+gocopy1:
+        ldir                            ; do the copy
 
         ld a, d
         ld (copyaddr), a                ; update copyaddr
@@ -169,6 +185,10 @@ rom_copyloop:
 rom_copydone:
         pop de                          ; remove ROM page number from stack
 
+        ld a, (bootflag)
+        or a
+        jp nz, installsig+0x8000        ; warm boot -- skip low memory init
+
         ; overwrite bootstrap code in low memory with halts (we are executing in the high memory copy)
         ld hl, #0x0030                  ; we place a HALT here already
         ld de, #0x0000
@@ -177,13 +197,14 @@ rom_copydone:
 
         ld hl, #0x0030                  ; we place a HALT here already
         ld de, #0x0031
-        ld bc, #0x00CF                  ; to 0x0100
+        ld bc, #0x004F                  ; to 0x0080
         ldir
 
         xor a                           ; wipe out the CP/M command buffer
         ld (0x0080), a                  ; char count
         ld (0x0081), a                  ; null terminated string
 
+installsig:
         ; install a signature (in the same location RomWBW uses)
         ld hl, #0x05B1
         ld (0x0040), hl
@@ -191,11 +212,16 @@ rom_copydone:
         ; we leave user memory mapped in and do not refer to ROM again
         jp init
 
+memtop = 0x100 - 16 ; leave space for signature
+
 bootrom_code_len = (. - zero)
-.ifgt (bootrom_code_len - 0x100) ; did we grow too large?
+.ifgt (bootrom_code_len - memtop) ; did we grow too large?
 ; cause an error (.msg, .error not yet supported by sdas which itself is an error)
 .msg "Boot ROM code/data is too large"
 .error 1
 .endif
 ; make space so the "init" symbol in runtime0.s is at 0x100
-        .ds 0x100 - (. - zero)          ; space until the CP/M load vector
+        .ds memtop - (. - zero)          ; space until the CP/M load vector
+        .db 0x05,0xCA                   ; 2 signature bytes
+        .ascii 'UNA CP/M ROM'           ; 12 signature bytes
+        .db 0xDC,0x86                   ; 2 signature bytes
