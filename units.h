@@ -15,7 +15,8 @@ typedef enum {
         // also update media_names[] in units.c when adding new entries
 } media_t;
 
-#define SECTORS_PER_SLICE 0x4100     // 8.125MB per CP/M slice
+#define SECTORS_PER_SLICE    0x4100     // 8.125MB per CP/M slice
+#define RAM_DISK_MAX_SECTORS 8192       // 4MB RAM disk is as large as we can handle with 2KB blocks
 
 typedef struct {
     unsigned char status;

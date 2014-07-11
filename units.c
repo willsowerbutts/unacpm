@@ -351,7 +351,7 @@ void init_units(void)
         if(!check_bios_call(&reg_out, &reg_in))
             u->sectors = (((unsigned long)reg_out.w.DE) << 16) | (reg_out.w.HL);
 
-        if(m == MEDIA_RAM)
+        if(m == MEDIA_RAM && u->sectors <= RAM_DISK_MAX_SECTORS)
             ram_disk_consider_format(unit);
 
         // sliced?

@@ -91,6 +91,10 @@ void prepare_drives(void)
             }
             dph->dpb = shared_hdd_dpb;
         }else if(media == MEDIA_RAM || media == MEDIA_ROM){
+            if(unit->sectors > RAM_DISK_MAX_SECTORS){
+                printf("Memory disk too large; limiting to 4MB.\n");
+                unit->sectors = RAM_DISK_MAX_SECTORS;
+            }
             dph->dpb = allocate_memory(sizeof(dpb_t));
             memcpy(dph->dpb, &mem_dpb_template, sizeof(dpb_t));
             dph->dpb->block_count = (unit->sectors >> 2) - 1;
@@ -102,7 +106,6 @@ void prepare_drives(void)
         dph->allocation_vector = allocate_memory((dph->dpb->block_count >> 3)+1);
 
         printf("Drive %c: assigned to %s slice %d\n", 'A' + i, unit_name(info->unit), info->slice);
-        // dump_dpb(dph->dpb);
         // next drive
         drive++;
         info++;
