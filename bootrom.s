@@ -10,6 +10,7 @@
 ; memory values in RAM during bootstrap
 ; we can use 0x8000 -- 0x803F which is the vector area in ROM, unused in the RAM copy
 copyaddr                    = 0x8000    ; 1 byte
+boottype                    = 0x8001    ; 1 byte
 
 ; buffer
 bouncebuffer                = 0x8100
@@ -36,6 +37,7 @@ stacktop                    = 0xa200
 
         .area _CODE
 zero:
+        ; boot entry vector in ROM, called by UNA
         ; entry is at 0x0000, executing from ROM
         jp rom_bootstrap                ; jump over vectors -- UNA now provides command line at 0x80--0xFF.
         halt                            ; fill space until the RST 8 vector with halt instructions
@@ -98,12 +100,21 @@ zero:
         halt
         halt
         ; we are now at address 0x40
+
+        ; boot entry vector in ROM, called by ASSIGN.COM program
+        ;  the command line is loaded into user memory at 0x80 ... 0x100
+cpm_bootstrap:
+        xor a                           ; ASSIGN -- boot type 0
+        jp bootstrap
 rom_bootstrap:
-        ; boot entry vector in ROM, called by ASSIGN.COM program or by UNA
-        ; either way, the command line is loaded into user memory at 0x80 ... 0x100
-        ld a, #0x01 ; overwrite RAM from 0x0100 upwards, preserving the CP/M command line
-        ld (copyaddr), a
+        ld a, #1                        ; UNA -- boot type 1
+bootstrap:
         ld sp, #stacktop                ; set up stack
+
+        ld (boottype), a
+
+        ld a, #1                        ; overwrite RAM from 0x0100 upwards, preserving the CP/M command line
+        ld (copyaddr), a
 
         ; copy ourselves into top half of RAM
         ; do not overwrite first few bytes (cold/warm boot flag)
@@ -146,6 +157,12 @@ rom_copyloop:
         ld (0x0008), a                  ; write to memory
         ld hl, #UNABIOS_STUB_ENTRY
         ld (0x0009), hl
+        ; on cold boot only, wipe out the BDOS entry vector
+        ld a, (boottype)
+        or a
+        jr z, gocopy1
+        ld a, #0x76                     ; halt instruction
+        ld (0x0005), a                  ; this is used as a marker to detect cold boot versus warm reload
 gocopy1:
         ld hl, #bouncebuffer            ; from high memory bounce buffer, above us
         ldir                            ; do the copy
@@ -163,7 +180,7 @@ gocopy1:
 rom_copydone:
         pop de                          ; remove ROM page number from stack
 
-        ; no longer required as UNA provides command line now
+        ; no longer required as UNA provides a command line in this location now
         ; xor a                           ; cold boot -- make an empty command line buffer
         ; ld (0x0080), a                  ; char count
         ; ld (0x0081), a                  ; null terminated string

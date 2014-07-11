@@ -12,6 +12,13 @@
 union regs reg_in, reg_out;
 bool update_saved_config = false;
 
+bool cpm_loaded(void)
+{
+    const unsigned char *bdos_entry = (const unsigned char *)0x0005;
+
+    return (*bdos_entry == 0xc3);
+}
+
 void halt(void)
 {
     __asm
@@ -26,7 +33,6 @@ void cpminit(char *cmdline)
 
     // hello, world.
     printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-11)\n");
-    printf("Command line: \"%s\"\n", cmdline);
 
     // prepare the high memory structures
     if(!init_persist())
@@ -43,15 +49,14 @@ void cpminit(char *cmdline)
     find_configuration_unit();
 
     // ensure command line is in upper case
-    target = cmdline;
-    while(*target){
+    for(target = cmdline; *target; target++)
         *target = toupper(*target);
-        target++;
-    }
 
     // try to load config from command line
     if(!config_load_from_string(cmdline)){
-        return; // error parsing command line -- abort.
+        if(cpm_loaded())
+            return; // error parsing command line -- abort.
+        // can't abort if no CP/M loaded to return to
     }
 
     if(drives_count_valid() == 0){
@@ -62,7 +67,9 @@ void cpminit(char *cmdline)
     if(update_saved_config){
         if(persist->config_unit == NO_UNIT){
             printf("No existing saved configuration detected. Use \"/CONFDISK=<disk> /SAVE\".\n");
-            return; // abort
+            if(cpm_loaded())
+                return; // abort
+            // can't abort; plough ahead
         }else{
             config_save_to_unit(persist->config_unit);
         }
@@ -84,7 +91,7 @@ void cpminit(char *cmdline)
         printf("\n** Relocation failed (Residual CP/M image corrupt) **\n");
         halt();
     }
-    printf(" booting.\n");
+    printf(" done.\n");
 
     // boot the residual CP/M system
     boot_cpm(target+BOOT_VECTOR_OFFSET);

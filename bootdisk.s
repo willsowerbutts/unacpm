@@ -42,6 +42,9 @@ go:     ld sp, #stacktop
         ld hl, #UNABIOS_STUB_ENTRY
         ld (0x0009), hl
 
+        ld a, #0x76         ; halt instruction
+        ld (0x0005), a      ; this is used as a marker to detect cold boot versus warm reload
+
 nextblock:
         ld e, #'='
         call printchar
