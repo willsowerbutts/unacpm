@@ -20,7 +20,7 @@ INIT+=putchar.rel units.rel bios.rel drives.rel memory.rel config.rel init.rel
 
 
 # all:	cpm.com cpm.ihx cpm.rom
-all:	cpm.com cpm.rom cpm.ihx assign.com
+all:	cpm.com cpm.rom cpm.ihx assign.com bootdisk.bin
 
 cpm.ihx:	$(INIT)
 	$(SDLD) $(LDOPTS) -i cpm.ihx -b _CODE=0x0000 -l z80 $(INIT)
@@ -34,6 +34,14 @@ cpm.rom:	cpm.ihx
 	srec_cat -disable-sequence-warning \
 		cpm.ihx -intel -fill 0xFF 0 0x8000 \
 		-output cpm.rom -binary
+
+bootdisk.ihx:	bootdisk.rel
+	$(SDLD) $(LDOPTS) -i bootdisk.ihx -b _CODE=0x8000 bootdisk.rel
+
+bootdisk.bin:	bootdisk.ihx
+	srec_cat -disable-sequence-warning \
+ 		bootdisk.ihx -intel -crop 0x8000 0x10000 -offset -0x8000 \
+ 		-output bootdisk.bin -binary
 	
 assign.ihx:	assign.rel
 	$(SDLD) $(LDOPTS) -i assign.ihx -b _CODE=0x8000 assign.rel

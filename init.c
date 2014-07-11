@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include "cpmimage.h"
 #include "relocate.h"
 #include "units.h"
@@ -24,7 +25,8 @@ void cpminit(char *cmdline)
     unsigned char *target;
 
     // hello, world.
-    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-09)\n");
+    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-11)\n");
+    printf("Command line: \"%s\"\n", cmdline);
 
     // prepare the high memory structures
     if(!init_persist())
@@ -40,9 +42,17 @@ void cpminit(char *cmdline)
     // look for a configuration block
     find_configuration_unit();
 
+    // ensure command line is in upper case
+    target = cmdline;
+    while(*target){
+        *target = toupper(*target);
+        target++;
+    }
+
     // try to load config from command line
-    if(!config_load_from_string(cmdline))
+    if(!config_load_from_string(cmdline)){
         return; // error parsing command line -- abort.
+    }
 
     if(drives_count_valid() == 0){
         // no disk mapping on the command line; load config from disk instead.
