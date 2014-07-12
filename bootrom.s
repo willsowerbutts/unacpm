@@ -153,18 +153,21 @@ rom_copyloop:
         jr nz, gocopy1
         dec b                           ; reduce size 0x100 bytes so copyaddr increases just as if we started at zero all along
         ; on the first pass, also install the UNA entry vector
-        ld a, #0xc3                     ; jump instruction
-        ld (0x0008), a                  ; write to memory
-        ld hl, (UNABIOS_STUB_ENTRY+1)   ; read target of jump at top of memory
-        ld (0x0009), hl                 ; write to RST vector
+        push bc
+        push de
+
+        ; write unabios vector in user memory
+        ld hl, #UNABIOS_STUB_ENTRY
+        ld de, #0x0008
+        ld bc, #3
+        ldir
+
         ; on cold boot only, wipe out the BDOS entry vector
         ld a, (boottype)
         or a
-        jr z, gocopy1
+        jr z, gocopy2
         ld a, #0x76                     ; halt instruction
         ld (0x0005), a                  ; this is used as a marker to detect cold boot versus warm reload
-        push bc
-        push de
         ld c, #UNABIOS_GET_HMA          ; get pointer to lowest byte used by UNA BIOS stub
         rst #UNABIOS_CALL               ; returns lowest used byte in HL.
         xor a                           ; zero out the two bytes below that.
@@ -172,6 +175,8 @@ rom_copyloop:
         ld (hl), a
         dec hl
         ld (hl), a
+
+gocopy2:
         pop de
         pop bc
 gocopy1:

@@ -37,10 +37,10 @@ go:     ld sp, #stacktop
         call #UNABIOS_STUB_ENTRY
 
         ; write unabios vector in user memory
-        ld a, #0xc3                     ; jump instruction
-        ld (0x0008), a                  ; write to memory
-        ld hl, (UNABIOS_STUB_ENTRY+1)   ; read target of jump at top of memory
-        ld (0x0009), hl                 ; write to RST vector
+        ld hl, #UNABIOS_STUB_ENTRY
+        ld de, #0x0008
+        ld bc, #3
+        ldir
 
         ; wipe BDOS entry vector
         ld a, #0x76                     ; halt instruction
@@ -54,6 +54,10 @@ go:     ld sp, #stacktop
         ld (hl), a
         dec hl
         ld (hl), a
+
+        ; install a signature (in the same location RomWBW uses)
+        ld hl, #0x05B1
+        ld (0x0040), hl
 
 nextblock:
         ld e, #'='
@@ -113,7 +117,7 @@ doldir: ldir
 
 printchar:
         ld bc, #UNABIOS_OUTPUT_WRITE
-        jp UNABIOS_CALL
+        jp UNABIOS_STUB_ENTRY
 
 error:
         ; print the error
