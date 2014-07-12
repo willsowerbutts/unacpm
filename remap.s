@@ -24,7 +24,17 @@ continue:
         ; hoist the stack up here too
         ld sp, #stacktop
 
-        ; examine each page in ROM
+        ; check for UNA
+        ld hl, #0x40
+        ld a, (hl)
+        cp #0xB1
+        inc hl
+        ld a, (hl)
+        cp #0x05
+        jr nz, notuna
+
+        ; smells like UNA.
+        ; now examine each page in ROM
         
         ; we know it won't be in page 0, so start with page 1.
         ld de, #1
@@ -63,19 +73,25 @@ sigfail:
         ld bc, #(UNABIOS_BANK_SET << 8 | UNABIOS_BANKEDMEM)
         call UNABIOS_STUB_ENTRY
 
-        ld de, #failstr
-        ld c, #UNABIOS_OUTPUT_WRITE_STRING
-        ld b, #0
-        ld l, #0
-        call UNABIOS_STUB_ENTRY
+        ld de, #romfailstr
+failexit:
+        ld c, #9
+        call BDOS
 
         ; exit via BDOS
         ld  c, #0
         call BDOS
 
-failstr:
-        .ascii 'Cannot find CP/M ROM page'
-        .db 13, 10, 0
+notuna:
+        ld de, #unafailstr
+        jr failexit
+
+romfailstr:
+        .ascii 'Cannot find CP/M ROM page$'
+
+unafailstr:
+        .ascii 'This only works with UNA CP/M$'
+
 sigcheck:
         .db 0x05,0xCA                   ; 2 signature bytes
         .ascii 'UNA CP/M ROM'           ; 12 signature bytes
