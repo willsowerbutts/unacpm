@@ -14,8 +14,7 @@ extern union regs reg_in, reg_out; // located in init.c
 void bios_call(union regs *regout, union regs *regin);
 void boot_cpm(void *target);
 
-#define UNABIOS_STUB_START            0xFF00 // UNA BIOS stub start
-#define UNABIOS_STUB_ENTRY            0xFF80 // main UNA entry vector
+#define UNABIOS_STUB_ENTRY            0xFFFD // main UNA entry vector
 #define UNABIOS_CALL                  0x08   // entry vector
 #define UNABIOS_GETINFO               0xFA   // C regsister (subfunction in B)
 #define UNABIOS_GET_SIGNATURE         0x00   //   B register (GETINFO subfunction)
@@ -38,7 +37,8 @@ void boot_cpm(void *target);
 #define UNABIOS_BLOCK_GET_CAPACITY    0x45   // C register (unit number in B, DE=0 or pointer to 512-byte buffer)
 #define UNABIOS_BLOCK_GET_TYPE        0x48   // C register (unit number in B)
 #define UNABIOS_BOOTHISTORY           0xFC   // C register (subfunction in B)
-#define UNABIOS_HISTORY_GET           0x00   //   B register (BOOTHISTORY subfunction)
-#define UNABIOS_HISTORY_SET           0x01   //   B register (BOOTHISTORY subfunction, DE=page number, L=unit)
+#define UNABIOS_BOOT_GET              0x00   //   B register (BOOTHISTORY subfunction)
+#define UNABIOS_BOOT_SET              0x01   //   B register (BOOTHISTORY subfunction, DE=page number, L=unit)
+#define UNABIOS_GET_HMA               0xF1   // C register (subfunction in B)
 
 #endif

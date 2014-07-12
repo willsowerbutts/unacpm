@@ -67,8 +67,8 @@ void prepare_drives(void)
     cpm_dirbuf = allocate_memory(128); // directory scratch area
 
     drive = allocate_memory(sizeof(drive_map_t) * valid);
-    persist->drive_count = valid;
-    persist->drive_map = drive;
+    persist.drive_count = valid;
+    persist.drive_map = drive;
 
     info = drive_info;
     

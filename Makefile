@@ -20,7 +20,7 @@ INIT+=putchar.rel units.rel bios.rel drives.rel memory.rel config.rel init.rel
 
 
 # all:	cpm.com cpm.ihx cpm.rom
-all:	cpm.com cpm.rom cpm.ihx assign.com bootdisk.bin
+all:	cpm.com cpm.rom cpm.ihx remap.com bootdisk.bin
 
 cpm.ihx:	$(INIT)
 	$(SDLD) $(LDOPTS) -i cpm.ihx -b _CODE=0x0000 -l z80 $(INIT)
@@ -43,16 +43,16 @@ bootdisk.bin:	bootdisk.ihx
  		bootdisk.ihx -intel -crop 0x8000 0x10000 -offset -0x8000 \
  		-output bootdisk.bin -binary
 	
-assign.ihx:	assign.rel
-	$(SDLD) $(LDOPTS) -i assign.ihx -b _CODE=0x8000 assign.rel
+remap.ihx:	remap.rel
+	$(SDLD) $(LDOPTS) -i remap.ihx -b _CODE=0x8000 remap.rel
 
-assign.com:	assign.ihx
+remap.com:	remap.ihx
 	srec_cat -disable-sequence-warning \
- 		assign.ihx -intel -crop 0x8000 0x10000 -offset -0x8000 \
- 		-output assign.com -binary
+ 		remap.ihx -intel -crop 0x8000 0x10000 -offset -0x8000 \
+ 		-output remap.com -binary
 
 clean:
-	rm -f *.ihx *.hex *.rel *.map *.bin cpm.com *.noi cpm.rom *.lst cpmimage.c *.asm *.sym assign.com
+	rm -f *.ihx *.hex *.rel *.map *.bin cpm.com *.noi cpm.rom *.lst cpmimage.c *.asm *.sym remap.com
 
 # Link CP/M at two base addresses so we can derive a relocatable version
 cpm-0000.ihx:	$(RUNTIME)

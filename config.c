@@ -8,6 +8,7 @@
 
 config_block_t config_block;
 extern bool update_saved_config;
+extern bool page_align;
 
 bool empty_string(const char *p)
 {
@@ -32,6 +33,11 @@ bool parse_option(const char *option)
         return true;
     }
 
+    if(strncmp(option, "BYTE", 4) == 0){
+        page_align = false;
+        return true;
+    }
+
     if(strncmp(option, "CONFDISK", 8) == 0 && (option[8] == ':' || option[8] == '=')){
         unit = unit_from_name(option + 9);
         if(unit == NO_UNIT){
@@ -44,7 +50,7 @@ bool parse_option(const char *option)
             printf(": Configuration can be stored only on sliced disks\n");
             return false;
         }
-        persist->config_unit = unit;
+        persist.config_unit = unit;
         printf("Configuration disk set to %s\n", unit_name(unit));
         return true;
     }
@@ -143,15 +149,15 @@ const unsigned char config_flags_preferences[] = {
 void find_configuration_unit(void)
 {
     const unsigned char *p;
-    if(persist->config_unit != NO_UNIT && persist->config_unit < MAXUNITS && 
-            (unit_info[persist->config_unit].flags & UNIT_FLAG_CONFIG_PRESENT)){
+    if(persist.config_unit != NO_UNIT && persist.config_unit < MAXUNITS && 
+            (unit_info[persist.config_unit].flags & UNIT_FLAG_CONFIG_PRESENT)){
         return; // nothing further to do
     }
 
     // ah, we will have to go searching
     p = config_flags_preferences;
-    while(persist->config_unit == NO_UNIT && *p){
-        persist->config_unit = find_unit_with_flags(*p);
+    while(persist.config_unit == NO_UNIT && *p){
+        persist.config_unit = find_unit_with_flags(*p);
         p++;
     }
 

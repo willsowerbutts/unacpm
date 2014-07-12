@@ -11,14 +11,14 @@
 ; we can use 0x8000 -- 0x803F which is the vector area in ROM, unused in the RAM copy
 copyaddr                    = 0x8000    ; 1 byte
 boottype                    = 0x8001    ; 1 byte
-
+; 0x8010 -- 80FF used by boot code
 ; buffer
 bouncebuffer                = 0x8100
-bouncesize                  = 0x2000    ; must be a factor of 0x8000
+bouncesize                  = 0x1000    ; must be a factor of 0x8000 and a multiple of 0x100
 ; note the 0x100 bytes AFTER bouncebuffer+bouncesize also get overwritten in the first pass of copying
 
-stackbase                   = 0xa100
-stacktop                    = 0xa200
+stackbase                   = 0x9200
+stacktop                    = 0x9300
 
 ; define the order of our areas
 .area _CODE
@@ -124,7 +124,7 @@ bootstrap:
         ldir
 
 ; ----------------------------------------------------------------------------------------------------
-; all jumps after here must be to the RAM copy of code, at 0x8000 plus the assembled address (in ROM)
+; all JPs after here must be to the RAM copy of code, at 0x8000 plus the assembled address (in ROM)
 ; ----------------------------------------------------------------------------------------------------
 
         jp rom_continue+0x8000 ; jump to copy of next instruction, in RAM
@@ -150,19 +150,30 @@ rom_copyloop:
         ld a, (copyaddr)                ; to low RAM
         ld d, a
         cp #1                           ; on the first pass we copy to 0x100
-        jp nz, gocopy1+0x8000
+        jr nz, gocopy1
         dec b                           ; reduce size 0x100 bytes so copyaddr increases just as if we started at zero all along
         ; on the first pass, also install the UNA entry vector
         ld a, #0xc3                     ; jump instruction
         ld (0x0008), a                  ; write to memory
-        ld hl, #UNABIOS_STUB_ENTRY
-        ld (0x0009), hl
+        ld hl, (UNABIOS_STUB_ENTRY+1)   ; read target of jump at top of memory
+        ld (0x0009), hl                 ; write to RST vector
         ; on cold boot only, wipe out the BDOS entry vector
         ld a, (boottype)
         or a
         jr z, gocopy1
         ld a, #0x76                     ; halt instruction
         ld (0x0005), a                  ; this is used as a marker to detect cold boot versus warm reload
+        push bc
+        push de
+        ld c, #UNABIOS_GET_HMA          ; get pointer to lowest byte used by UNA BIOS stub
+        rst #UNABIOS_CALL               ; returns lowest used byte in HL.
+        xor a                           ; zero out the two bytes below that.
+        dec hl
+        ld (hl), a
+        dec hl
+        ld (hl), a
+        pop de
+        pop bc
 gocopy1:
         ld hl, #bouncebuffer            ; from high memory bounce buffer, above us
         ldir                            ; do the copy
@@ -170,12 +181,12 @@ gocopy1:
         ld a, d
         ld (copyaddr), a                ; update copyaddr
         cp #0x80                        ; done at 0x8000?
-        jp z, rom_copydone+0x8000
+        jr z, rom_copydone
 
         pop de                          ; recover ROM page number
         ld bc, #(UNABIOS_BANK_SET << 8 | UNABIOS_BANKEDMEM)
         rst #UNABIOS_CALL               ; map in ROM -- on the first cycle we install the required vector
-        jp rom_copyloop+0x8000
+        jr rom_copyloop
 
 rom_copydone:
         pop de                          ; remove ROM page number from stack

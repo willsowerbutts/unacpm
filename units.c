@@ -302,7 +302,7 @@ void init_units(void)
 
     // flag the unit we booted from
     reg_in.b.C = UNABIOS_BOOTHISTORY;
-    reg_in.b.B = UNABIOS_HISTORY_GET;
+    reg_in.b.B = UNABIOS_BOOT_GET;
     if(!check_bios_call(&reg_out, &reg_in)){
         if(reg_out.b.L < MAXUNITS)
             unit_info[reg_out.b.L].flags |= UNIT_FLAG_BOOTED;

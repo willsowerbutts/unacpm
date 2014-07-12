@@ -11,6 +11,7 @@
 
 union regs reg_in, reg_out;
 bool update_saved_config = false;
+bool page_align = true;
 
 bool cpm_loaded(void)
 {
@@ -61,17 +62,17 @@ void cpminit(char *cmdline)
 
     if(drives_count_valid() == 0){
         // no disk mapping on the command line; load config from disk instead.
-        config_load_from_unit(persist->config_unit);
+        config_load_from_unit(persist.config_unit);
     }
 
     if(update_saved_config){
-        if(persist->config_unit == NO_UNIT){
+        if(persist.config_unit == NO_UNIT){
             printf("No existing saved configuration detected. Use \"/CONFDISK=<disk> /SAVE\".\n");
             if(cpm_loaded())
                 return; // abort
             // can't abort; plough ahead
         }else{
-            config_save_to_unit(persist->config_unit);
+            config_save_to_unit(persist.config_unit);
         }
     }
 
@@ -83,8 +84,10 @@ void cpminit(char *cmdline)
     // relocate and load residual component
     target = allocate_memory(cpm_image_length);
 
-    // Force page alignment. Some applications require this.
-    target = allocate_memory(((unsigned int)target) & 0xFF);    // expand, align. wasteful :(
+    if(page_align){
+        // Force page alignment. Some (many?) applications require this.
+        target = allocate_memory(((unsigned int)target) & 0xFF);    // expand, align. wasteful :(
+    }
 
     printf("\nLoading Residual CP/M at 0x%04X ...", target);
     if(!relocate_cpm(target)){
@@ -92,6 +95,9 @@ void cpminit(char *cmdline)
         halt();
     }
     printf(" done.\n");
+
+    // write in the persist_t structure
+    write_persist(target, cpm_image_length);
 
     // boot the residual CP/M system
     boot_cpm(target+BOOT_VECTOR_OFFSET);

@@ -51,16 +51,6 @@ WRT_UNA                     = 2         ; write to unallocated
 iobyte                      = 3         ; intel "standard" i/o byte
 cdisk                       = 4         ; current disk/user number
 
-; Addresses of the fields in the struct persist_t at the top of memory
-; remember it's upside-down here.
-persist_signature           = 0xFF00 - 2
-persist_version             = persist_signature - 1
-bufadr                      = persist_version - 2
-ccpadr                      = bufadr - 2
-config_unit                 = ccpadr - 1
-drvcnt                      = config_unit - 1
-drvmap                      = drvcnt - 2
-
 ; the CP/M BIOS function call dispatch table
 ;--------------------------------------------------------------------------
 BOOT:       jp bios_boot         ; cold start
@@ -822,16 +812,19 @@ init_code_len = (. - init_code_start)
 .endif
 ; end of init code and data
 ; pad buffers to length ---------------------------------------------------
-             .ds postboot_data_len - (. - init_code_start) - 1 ; must be last
-             .db 0x00 ; write a value into the final byte so srec_cat outputs a file of the required size
+            .ds postboot_data_len - (. - init_code_start) 
 ; -------------------------------------------------------------------------
 ; END OF MEMORY SHARED WITH POST-BOOT BUFFERS
 ; -------------------------------------------------------------------------
 
-;; ; safety check to ensure we do not overflow into the UBIOS stub at 0xFF00
-;; cbios_length = . - BOOT
-;; .ifgt cbios_length - (UNABIOS_STUB_START - CBIOS_START) ; > 0 ?
-;; ; cause an error (.msg, .error not yet supported by sdas which itself is an error)
-;; .msg "CBIOS is too large"
-;; .error 1
-;; .endif
+; -------------------------------------------------------------------------
+; this is the persist_t structure, filled in by the C init code
+; keep in sync with memory.h
+signature:  .dw 0
+version:    .db 0
+drvmap:     .dw 0
+drvcnt:     .db 0
+config_unit:.db 0
+ccpadr:     .dw 0
+bufadr:     .dw 0
+; -------------------------------------------------------------------------

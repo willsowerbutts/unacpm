@@ -25,7 +25,7 @@ go:     ld sp, #stacktop
         ld bc, #(UNABIOS_BOOT_GET << 8 | UNABIOS_BOOTHISTORY)
         call #UNABIOS_STUB_ENTRY
         ld a, l
-        ld (unit), a        ; save boot unit
+        ld (unit), a                    ; save boot unit
 
         ; get the page number for the user memory bank
         ld bc, #(UNABIOS_GET_USER_PAGES << 8 | UNABIOS_GETINFO)
@@ -37,13 +37,23 @@ go:     ld sp, #stacktop
         call #UNABIOS_STUB_ENTRY
 
         ; write unabios vector in user memory
-        ld a, #0xc3         ; jump instruction
-        ld (0x0008), a      ; write to memory
-        ld hl, #UNABIOS_STUB_ENTRY
-        ld (0x0009), hl
+        ld a, #0xc3                     ; jump instruction
+        ld (0x0008), a                  ; write to memory
+        ld hl, (UNABIOS_STUB_ENTRY+1)   ; read target of jump at top of memory
+        ld (0x0009), hl                 ; write to RST vector
 
-        ld a, #0x76         ; halt instruction
-        ld (0x0005), a      ; this is used as a marker to detect cold boot versus warm reload
+        ; wipe BDOS entry vector
+        ld a, #0x76                     ; halt instruction
+        ld (0x0005), a                  ; this is used as a marker to detect cold boot versus warm reload
+
+        ; wipe persistent memory pointer (persist_ptr, immediately below UNA UBIOS stub / HMA)
+        ld c, #UNABIOS_GET_HMA          ; get pointer to lowest byte used by UNA BIOS stub
+        rst #UNABIOS_CALL               ; returns lowest used byte in HL.
+        xor a                           ; zero out the two bytes below that.
+        dec hl
+        ld (hl), a
+        dec hl
+        ld (hl), a
 
 nextblock:
         ld e, #'='

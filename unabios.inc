@@ -1,5 +1,4 @@
-UNABIOS_STUB_START          = 0xFF00    ; UNA BIOS stub start
-UNABIOS_STUB_ENTRY          = 0xFF80    ; main UNA entry vector
+UNABIOS_STUB_ENTRY          = 0xFFFD    ; main UNA entry vector
 UNABIOS_CALL                = 0x08      ; entry vector
 UNABIOS_GETINFO             = 0xFA      ; C regsister (subfunction in B)
 UNABIOS_GET_SIGNATURE       = 0x00      ;   B register (GETINFO subfunction)
@@ -25,3 +24,4 @@ UNABIOS_BLOCK_GET_TYPE      = 0x48      ; C register (unit number in B)
 UNABIOS_BOOTHISTORY         = 0xFC      ; C register (subfunction in B)
 UNABIOS_BOOT_GET            = 0x00      ;   B register (BOOTHISTORY subfunction)
 UNABIOS_BOOT_SET            = 0x01      ;   B register (BOOTHISTORY subfunction)
+UNABIOS_GET_HMA             = 0xF1      ; C register (subfunction in B)
