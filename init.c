@@ -33,7 +33,7 @@ void cpminit(char *cmdline)
     unsigned char *target;
 
     // hello, world.
-    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-11)\n");
+    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-13)\n");
 
     // prepare the high memory structures
     if(!init_persist())
