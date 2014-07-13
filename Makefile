@@ -40,7 +40,7 @@ bootdisk.ihx:	bootdisk.rel
 
 bootdisk.bin:	bootdisk.ihx
 	srec_cat -disable-sequence-warning \
- 		bootdisk.ihx -intel -crop 0x8000 0x10000 -offset -0x8000 \
+ 		bootdisk.ihx -intel -fill 0xFF 0x8000 0x8200 -crop 0x8000 0x8200 -offset -0x8000 \
  		-output bootdisk.bin -binary
 	
 remap.ihx:	remap.rel

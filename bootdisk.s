@@ -5,18 +5,19 @@
 ; define the order of our areas
         .area _CODE
 
-buffer    = 0x9000 ; disk buffer (512 bytes)
-stacktop  = 0xb000 ; top of stack
+; we are loaded at 0x8000
+buffer    = 0x8200 ; disk buffer (512 bytes)
+stacktop  = 0x8400 ; top of stack (512 bytes)
 
 .include "unabios.inc"
 
         .area _CODE
-        ; UNA BIOS loads us from disk at 0x8000
-        ; supposedly with the boot unit number in register L (2014-07-11 -- it's not there yet)
-        ; we must start with a JP or JR instruction.
-        jr go
-go:     ld sp, #stacktop
+start:
+        ; UNA BIOS loads us from disk sector 0 at 0x8000
+        jr go                           ; we must start with a JP or JR instruction.
+        .ds 0x40 - (.-start)            ; must leave room for floppy or partition superblock information
 
+go:     ld sp, #stacktop                ; set inital stack
         ; write a character
         ld e, #'['
         call printchar
@@ -115,6 +116,25 @@ doldir: ldir
         ; we're loaded. let's go.
         jp 0x100
 
+
+; print a hex byte in A
+byt_out:
+        push af         ; save low nibble
+        rrca            ; move high nibble into position
+        rrca            ; **
+        rrca
+        rrca
+        call nib_out    ; put out the high nibble
+        pop af          ; fall into nib_out to put out low nibble
+; print a hex-nibble in A
+nib_out:
+        and #0x0F       ; mask the nibble
+        add #0          ; clear the AUX carry bit
+        daa             ; decimal adjust the A
+        add #0xF0       ; move hi-nib into carry, hi-nib is 0 or F
+        adc #0x40       ; form ascii character
+        ld  e, a
+        ; fall through into printchar
 printchar:
         ld bc, #UNABIOS_OUTPUT_WRITE
         jp UNABIOS_STUB_ENTRY
@@ -122,6 +142,7 @@ printchar:
 error:
         ; print the error
         ld a, c
+        call byt_out
         ld e, a
         call printchar
 
@@ -139,3 +160,10 @@ error:
 unit:       .db 0
 block:      .db 2       ; start loading at sector 2
 copyaddr:   .db 1       ; start loading at 0x100, not 0.
+
+    .ds 0x1BE - ( . -start) ; pad to start of partition tables
+    .db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ; partition 1
+    .db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ; partition 2
+    .db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ; partition 3
+    .db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ; partition 4
+    .dw 0xAA55              ; DOS boot signature
