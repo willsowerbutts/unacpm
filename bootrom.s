@@ -209,10 +209,6 @@ withcmdline:                            ; can also include first boot
         ld (hl), a
         ldir
 
-        ; install a signature (in the same location RomWBW uses)
-        ld hl, #0x05B1
-        ld (0x0040), hl
-
         ; we leave user memory mapped in
         jp init
 

@@ -24,13 +24,13 @@ continue:
         ; hoist the stack up here too
         ld sp, #stacktop
 
-        ; check for UNA
-        ld hl, #0x40
+        ; check for UNA BIOS presence
+        ld hl, #0x46
         ld a, (hl)
-        cp #0xB1
+        cp #0xCE
         inc hl
         ld a, (hl)
-        cp #0x05
+        cp #0x9C
         jr nz, notuna
 
         ; smells like UNA.
@@ -90,7 +90,7 @@ romfailstr:
         .ascii 'Cannot find CP/M ROM page$'
 
 unafailstr:
-        .ascii 'This only works with UNA CP/M$'
+        .ascii 'This program requires UNA BIOS$'
 
 sigcheck:
         .db 0x05,0xCA                   ; 2 signature bytes

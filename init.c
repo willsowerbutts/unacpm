@@ -15,9 +15,13 @@ bool page_align = true;
 
 bool cpm_loaded(void)
 {
-    const unsigned char *bdos_entry = (const unsigned char *)0x0005;
+    return (*((unsigned char *)BDOS_ENTRY_ADDR) == 0xC3); // 0xC3 == JP instruction
+}
 
-    return (*bdos_entry == 0xc3);
+void write_signatures(void)
+{
+    *((unsigned int *)CPM_SIGNATURE_ADDR)  = 0x05B1; // Identify UNA CP/M
+    *((unsigned int *)BIOS_SIGNATURE_ADDR) = 0x9CCE; // Identify UNA BIOS
 }
 
 void halt(void)
@@ -33,7 +37,7 @@ void cpminit(char *cmdline)
     unsigned char *target;
 
     // hello, world.
-    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-13)\n");
+    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-16)\n");
 
     // prepare the high memory structures
     if(!init_persist())
@@ -98,6 +102,9 @@ void cpminit(char *cmdline)
 
     // write in the persist_t structure
     write_persist(target, cpm_image_length);
+
+    // write signatures in memory to identify us
+    write_signatures();
 
     // boot the residual CP/M system
     boot_cpm(target+BOOT_VECTOR_OFFSET);

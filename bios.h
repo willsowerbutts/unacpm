@@ -41,4 +41,9 @@ void boot_cpm(void *target);
 #define UNABIOS_BOOT_SET              0x01   //   B register (BOOTHISTORY subfunction, DE=page number, L=unit)
 #define UNABIOS_GET_HMA               0xF1   // C register (subfunction in B)
 
+// addresses of interesting data in the zero page
+#define BDOS_ENTRY_ADDR               0x0005
+#define CPM_SIGNATURE_ADDR            0x0040
+#define BIOS_SIGNATURE_ADDR           0x0046
+
 #endif

@@ -56,10 +56,6 @@ go:     ld sp, #stacktop                ; set inital stack
         dec hl
         ld (hl), a
 
-        ; install a signature (in the same location RomWBW uses)
-        ld hl, #0x05B1
-        ld (0x0040), hl
-
 nextblock:
         ld e, #'='
         call printchar
