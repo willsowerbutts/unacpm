@@ -103,7 +103,7 @@ gocpm:
             call blkres
 
             ld bc, #0x0080  ; default DMA address
-            call setdma     ; configure DMA
+            call SETDMA     ; configure DMA
             ld a, (cdisk)   ; get current disk
             ld c, a         ; send to ccp
             ; TODO: we assume that current disk is ok (we should probably check!)
@@ -339,7 +339,7 @@ una_ini:                    ; initialize tracking of sequential writes into unal
             ; copy sekdsk/trk/sec to una...
             ld hl, #sek
             ld de, #una
-            ld bc, #UNASIZ
+            ld bc, #unasiz
             ldir
 
             ; setup unacnt and unaspt
@@ -381,7 +381,7 @@ una_chk1:
 ; to reflect the next record (trk/sec) we expect
 una_inc:
             ; decrement the block record count
-            ld hl, #UNACNT
+            ld hl, #unacnt
             dec (hl)
             ; increment the sector
             ld de, (unasec)
@@ -708,7 +708,7 @@ xltdu:      .db     0
 xltdph:     .dw     0
 xltoff:     .dw     0
 xltact:     .db     TRUE    ; always true!
-XLTSIZ      =       ( . - XLT)
+xltsiz      =       ( . - xlt)
 
 ; DSK/TRK/SEC IN BUFFER (VALID WHEN HSTACT=TRUE)
 hst:
@@ -726,7 +726,7 @@ unadsk:     .db     0       ; disk number 0-15
 unatrk:     .dw     0       ; two bytes for track # (logical)
 unasec:     .dw     0       ; two bytes for sector # (logical)
 ;
-UNASIZ      =       (. - una)
+unasiz      =       (. - una)
 
 unacnt:     .db     0       ; count down unallocated records in block
 unaspt:     .dw     0       ; sectors per track
@@ -802,14 +802,13 @@ bootmsg:    .ascii "CP/M 2.2 Copyright 1979 (c) by Digital Research"
             .db 0
 
 ; safety check to ensure we do not overflow the available space
-; ** we could allow more space if we could guarantee we were followed by some uninitialised buffer, eg dirbuf?
-; ** how to communicate the required runtime versus load time size to the initialisation code?
 init_code_len = (. - init_code_start)
-.ifgt (init_code_len - postboot_data_len) ; > 0 ?
-; cause an error (.msg, .error not yet supported by sdas which itself is an error)
-.msg "Init code/data is too large"
-.error 1
-.endif
+; safety check disabled; .ifgt is not supported by sdcc 3.1 in Debian stable
+;; .ifgt (init_code_len - postboot_data_len) ; > 0 ?
+;; ; cause an error (.msg, .error not yet supported by sdas which itself is an error)
+;; .msg "Init code/data is too large"
+;; .error 1
+;; .endif
 ; end of init code and data
 ; pad buffers to length ---------------------------------------------------
             .ds postboot_data_len - (. - init_code_start) 

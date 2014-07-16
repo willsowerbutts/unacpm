@@ -215,11 +215,12 @@ withcmdline:                            ; can also include first boot
 memtop = 0x100 - 16 ; leave space for signature
 
 bootrom_code_len = (. - zero)
-.ifgt (bootrom_code_len - memtop) ; did we grow too large?
-; cause an error (.msg, .error not yet supported by sdas which itself is an error)
-.msg "Boot ROM code/data is too large"
-.error 1
-.endif
+; safety check disabled; .ifgt is not supported by sdcc 3.1 in Debian stable
+;; .ifgt (bootrom_code_len - memtop) ; did we grow too large?
+;; ; cause an error (.msg, .error not yet supported by sdas which itself is an error)
+;; .msg "Boot ROM code/data is too large"
+;; .error 1
+;; .endif
 ; make space so the "init" symbol in runtime0.s is at 0x100
         .ds memtop - (. - zero)          ; space until the CP/M load vector
         .db 0x05,0xCA                   ; 2 signature bytes

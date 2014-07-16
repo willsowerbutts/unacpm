@@ -19,7 +19,7 @@ start:
 
 go:     ld sp, #stacktop                ; set inital stack
         ; write a character
-        ld e, #'['
+        ld e, #0x5B                     ; '['
         call printchar
 
         ; determine the boot unit
@@ -57,7 +57,7 @@ go:     ld sp, #stacktop                ; set inital stack
         ld (hl), a
 
 nextblock:
-        ld e, #'='
+        ld e, #0x3D                     ; '='
         call printchar
 
         ; set LBA
@@ -102,11 +102,11 @@ doldir: ldir
         cp #0x80            ; done?
         jr nz, nextblock
 
-        ld e, #']'
+        ld e, #0x5D         ; ']'
         call printchar
-        ld e, #0x0d
+        ld e, #0x0D
         call printchar
-        ld e, #0x0a
+        ld e, #0x0A
         call printchar
 
         ; we're loaded. let's go.
@@ -143,11 +143,11 @@ error:
         call printchar
 
         ; sad face :(
-        ld e, #' '
+        ld e, #0x20     ; space
         call printchar
-        ld e, #':'
+        ld e, #0x3A     ; ':'
         call printchar
-        ld e, #'('
+        ld e, #0x28     ; '('
         call printchar
 
         ; park the vehicle
