@@ -4,21 +4,28 @@ import os
 import subprocess
 import datetime
 
+def run_command(cmd):
+    pr = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    out, err = pr.communicate()
+
+    if pr.returncode:
+        raise RuntimeError('command %r failed with code %r' % (cmd, pr.returncode))
+
+    return out
+
 date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
 if os.access('.git', os.F_OK):
-    pr = subprocess.Popen(['git', 'rev-parse', 'HEAD'], stdout=subprocess.PIPE)
-    git_hash, err = pr.communicate()
-
-    if pr.returncode:
-        raise RuntimeError, 'git failed'
-
-    git_hash = git_hash.strip()
+    git_hash = run_command(['git', 'rev-parse', 'HEAD']).strip()
+    git_diff = run_command(['git', 'diff', '--numstat']).strip()
+    git_hash = git_hash[:6]
+    if git_diff:
+        git_hash += ('+%d' % len(git_diff.split('\n')))
 else:
     git_hash = None
 
 if git_hash:
-    version_string = '%s git %s' % (date_str, git_hash[:6])
+    version_string = '%s git %s' % (date_str, git_hash)
 else:
     version_string = '%s' % (date_str,)
 
