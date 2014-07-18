@@ -106,10 +106,10 @@ media_t driver_id_to_media(unsigned char id, unsigned char flags)
 {
     switch(id){
         case 0x40:
-            if(flags & 0x04)
-                return MEDIA_ROM;
-            else
+            if(flags & 0x80)
                 return MEDIA_RAM;
+            else
+                return MEDIA_ROM;
         case 0x41:
         case 0x42:
             return MEDIA_IDE;
@@ -292,7 +292,7 @@ unsigned char find_unit_with_flags(unsigned char flags)
 void init_units(void)
 {
     media_t m;
-    unsigned char driver;
+    unsigned char driver, unaflags;
     unsigned char unit, i;
     unsigned char unit_count;
     unit_info_t *u;
@@ -323,19 +323,25 @@ void init_units(void)
 
     for(unit=0; unit<unit_count; unit++){
         u = &unit_info[unit];
-
-        // set flags
-        u->flags = 0;
+        unaflags = 0;
+        driver = 0;
 
         // get type information
         reg_in.b.B = unit;
         reg_in.b.C = UNABIOS_BLOCK_GET_TYPE;
-        check_bios_call(&reg_out, &reg_in);
-        // printf("DE=%04x HL=%04x ", reg_out.w.DE, reg_out.w.HL);
+        if(!check_bios_call(&reg_out, &reg_in))
+            driver = reg_out.b.D;
+
+        // get capacity
+        reg_in.b.C = UNABIOS_BLOCK_GET_CAPACITY;
+        reg_in.w.DE = 0;
+        if(!check_bios_call(&reg_out, &reg_in)){
+            u->sectors = (((unsigned long)reg_out.w.DE) << 16) | (reg_out.w.HL);
+            unaflags = reg_out.b.B;
+        }
 
         // media type
-        driver = reg_out.b.D;
-        m = driver_id_to_media(driver, reg_out.b.H);
+        m = driver_id_to_media(driver, unaflags);
         u->media = m;
 
         // compute index
@@ -343,12 +349,6 @@ void init_units(void)
         for(i=0; i<unit; i++)
             if(unit_info[i].media == m)
                 u->index++;
-
-        // get capacity
-        reg_in.b.C = UNABIOS_BLOCK_GET_CAPACITY;
-        reg_in.w.DE = 0;
-        if(!check_bios_call(&reg_out, &reg_in))
-            u->sectors = (((unsigned long)reg_out.w.DE) << 16) | (reg_out.w.HL);
 
         if(m == MEDIA_RAM && u->sectors <= RAM_DISK_MAX_SECTORS)
             ram_disk_consider_format(unit);
