@@ -20,7 +20,7 @@ if os.access('.git', os.F_OK):
     git_diff = run_command(['git', 'diff', '--numstat']).strip()
     git_hash = git_hash[:6]
     if git_diff:
-        git_hash += ('+%d' % len(git_diff.split('\n')))
+        git_hash += '+'
 else:
     git_hash = None
 
