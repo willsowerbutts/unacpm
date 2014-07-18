@@ -24,8 +24,8 @@ This version of UNA CP/M includes only basic support for character I/O
 devices. The CP/M "I/O byte" is ignored. All console input and output are 
 handled by UNA serial device 0.
 
-UNA CP/M's CBIOS is based in part on the RomWBW CBIOS by Wayne Warthen and 
-Andrew Lynch.
+UNA CP/M's CBIOS is based in part on the RomWBW CBIOS by Wayne Warthen,
+Andrew Lynch and other contributors to the N8VEM project.
 
 
 = Drives, Units, Disks, Partitions and Slices =
@@ -37,10 +37,11 @@ the user as described later in this document.
 CP/M's filesystem is based around the concept of "drives" which it labels as
 A:, B:, C: etcetera. Each drive is a separate file system.
 
-UNA BIOS presents each mass storage device (disk) in the system available as 
-a separate "unit". UNA BIOS uses unit numbers to refer to these. UNA CP/M 
-gives each disk a name, for example "IDE0" and "IDE1" are the first two IDE 
-disks in the system, while "SD0" is the first SD card.
+UNA BIOS presents each mass storage device (disk) in the system as a separate
+"unit". UNA BIOS uses a unit number to refer to each disk.
+
+UNA CP/M gives each disk a name, for example "IDE0" and "IDE1" are the first
+two IDE disks in the system, while "SD0" is the first SD card.
 
 Disks larger than approximately 8MB can hold multiple CP/M filesystems. These 
 disks are divided into a series of "slices", with each slice holding a 
@@ -50,10 +51,10 @@ Each slice is exactly 8,320KB in length, with the first 128KB reserved to
 hold system-specific data (for example, the data required to boot from the 
 disk).
 
-Previous CP/M systems for N8VEM, including RomWBW, store the slices starting 
-at the LBA 0 (ie, the first sector) and extending to cover the entire disk.  
-This can be a problem if you wish to store other filesystems on the disk. UNA 
-CP/M supports disks that optionally use a PC-style MBR partition table.
+Previous CP/M systems for N8VEM, including RomWBW, store the slices starting at
+LBA 0 (ie, the first sector) and extending to cover the entire disk. This can
+be a problem if you wish to store other filesystems on the disk. UNA CP/M
+supports disks that optionally use a PC-style MBR partition table.
 
 UNA CP/M will read the four primary partition entries from the MBR and use 
 these to decide where to store its data on the disk.
@@ -68,36 +69,42 @@ partition types can therefore be used to create "protective" areas, ie to
 mark the space as being in use and prevent other systems from trying to use
 it.
 
-If UNA CP/M finds partitions of any other type it will regard them as being 
-in use by some foreign operating system and will avoid using that space 
-entirely. This ensures that CP/M does not overlay slices over another 
-operating system's data.
+If UNA CP/M finds partitions of any other type it will regard them as being in
+use by some foreign operating system and will avoid using that space entirely.
+This ensures that CP/M does not overlay slices over another operating system's
+data. In other words, the first sector occupied by a foreign partition marks
+the end of the space that UNA CP/M will use if no CP/M partition is present.
 
 If that all sounds complex, don't panic! Here are the common scenarios:
 
-You have a disk that you use with RomWBW, containing no MBR partition table: 
-You don't need to do anything, it will be compatible with UNA CP/M. UNA will 
+ * You have a disk that you use with RomWBW, containing no MBR partition table: 
+
+You don't need to do anything, it will be compatible with UNA CP/M. UNA will
 store slices starting from LBA 0 across the entire disk.
 
-You have a blank disk that you want to use with UNA CP/M and optionally other 
-operating systems: Write an MBR partition table to it, put a partition of 
-type 0x32 anywhere on the disk. UNA CP/M will exclusively use that partition.  
-If you allocate space to other operating systems, UNA CP/M will never use 
-that space.
+ * You have a blank disk that you want to use with UNA CP/M and optionally
+   other operating systems: 
 
-You have a disk that you use with RomWBW which contains an MBR partition 
-table: UNA CP/M will use all the space from the start of the disk up to the 
-start of the first "foreign" partition. If you've left unpartitioned space at 
-the start of the disk, it will use this. If you've created a "protective" 
-partition to stop other operating systems writing to this space, make sure it 
-is type 0x05 or 0x0F so that UNA CP/M ignores it rather than regarding it as 
-"foreign".
+Write an MBR partition table to it, put a partition of type 0x32 anywhere on
+the disk. UNA CP/M will exclusively use that partition.  If you allocate space
+to other operating systems, UNA CP/M will never use that space.
 
-You have a disk that you use with RomWBW and you want to use a type 0x32 
-partition to contain your data: This is a little more complex as the RomWBW 
-slices start at LBA 0 but you cannot create a partition that includes LBA 0.  
-You need to copy the slices off onto another disk, create the partition, and 
-then copy the slices back into the partition. Under Linux you would do:
+ * You have a disk that you use with RomWBW which contains an MBR partition 
+   table: 
+
+UNA CP/M will use all the space from the start of the disk up to the start of
+the first "foreign" partition. If you've left unpartitioned space at the start
+of the disk, it will use this. If you've created a "protective" partition to
+stop other operating systems writing to this space, make sure it is type 0x05
+or 0x0F so that UNA CP/M ignores it rather than regarding it as "foreign".
+
+ * You have a disk that you use with RomWBW and you want to use a type 0x32 
+   partition to contain your data:
+   
+This is a little more complex as the RomWBW slices start at LBA 0 but you
+cannot create a partition that includes LBA 0.  You need to copy the slices off
+onto another disk, create the partition, and then copy the slices back into the
+partition. Under Linux you would do:
 
  $ dd if=/dev/sdx bs=8320k count=16 of=/tmp/cpmslices
  $ fdisk /dev/sdx        # create new partition, type 0x32, for UNA CP/M
@@ -105,6 +112,24 @@ then copy the slices back into the partition. Under Linux you would do:
 
 These commands assume you have used 16 slices on disk /dev/sdx and that your 
 new UNA CP/M partition is the first on the disk.
+
+UNA CP/M prints flags for each disk. Here's a description of each flag:
+
+  "MBR": An MBR partition map was found on the disk
+  
+  "CPM": A type 0x32 partition was found on the disk
+  
+  "FGN": A foreign partition was found on the disk
+  
+  "IGN": A type 0x05 or 0x0F partition was found on the disk (and ignored)
+  
+  "CFG": A valid UNA CP/M saved configuration block was found on the disk
+  
+  "BOOT": This is the disk from which UNA BIOS booted
+
+The RAM disk will be formatted if it does not appear to contain a valid CP/M
+file system (typically only following a cold boot). The RAM disk flags will
+contain the annotation "(formatted)" to indicate this.
 
 
 = Running UNA CP/M =
