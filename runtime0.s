@@ -9,7 +9,6 @@
         .globl s__INITIALIZER
         .globl s__GSFINAL
 
-        .area _BOOTSTRAP
         .area _CODE
         ; this code is loaded at 0x100 by CP/M
 
@@ -37,26 +36,10 @@ init:
         ld  c, #0
         call 5
     
-        ; Ordering of segments for the linker.
-        ; WRS: Note we list all our segments here, even though
-        ; we don't use them all, because ordering is set
-        ; when they are first seen, it would appear.
-        .area   _TPA
-        .area   _HOME
-        .area   _INITIALIZER
-        .area   _GSINIT
-        .area   _GSFINAL
-        .area   _DATA
-        .area   _INITIALIZED
-        .area   _BSEG
-        .area   _STACK
-        .area   _BSS
-        .area   _HEAP
-
 ; ----------------------------------------
         .area   _STACK
         .ds 256   ; stack memory
-init_stackptr:    ; this is the last thing the booster code will copy
+init_stackptr:
 
 ; ----------------------------------------
         .area   _GSINIT

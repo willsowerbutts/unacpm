@@ -3,7 +3,7 @@
         .module bootrom
 
         .globl init
-        .area _CODE
+        .globl _software_version_string
 
 .include "unabios.inc"
 
@@ -20,7 +20,7 @@ bouncesize                  = 0x1000    ; must be a factor of 0x8000 and a multi
 stackbase                   = 0x9200
 stacktop                    = 0x9300
 
-; define the order of our areas
+; define the order of our areas for the linker
 .area _CODE
 .area _TPA
 .area _HOME
@@ -34,15 +34,13 @@ stacktop                    = 0x9300
 .area _BSS
 .area _HEAP
 
-
         .area _CODE
 zero:
         ; boot entry vector in ROM, called by UNA
         ; entry is at 0x0000, executing from ROM
         jp rom_bootstrap                ; jump over vectors -- UNA now provides command line at 0x80--0xFF.
         halt                            ; fill space until the RST 8 vector with halt instructions
-        halt
-        halt
+        .dw romname_signature
         halt
         halt
         jp UNABIOS_STUB_ENTRY           ; UNA RST 8 entry vector
@@ -212,17 +210,29 @@ withcmdline:                            ; can also include first boot
         ; we leave user memory mapped in
         jp init
 
-memtop = 0x100 - 16 ; leave space for signature
+; identity of this ROM page (pointer at offset 4 points here)
+romname_signature:
+        .db 0x76, 0xB5                  ; 2 signature bytes
+        .db 0x01                        ; structure version number
+        .db 7                           ; ROM size (in multiples of 4KB, minus one)
+        .dw _software_version_string    ; pointer to human-readable ROM name
+        .dw author_initials             ; pointer to author initials
+        .dw _software_version_string    ; pointer to longer description of ROM
+        .db 0, 0, 0, 0, 0, 0            ; reserved for future use; must be zero
+
+author_initials:
+        .ascii "WRS"
+        .db 0
+                
 
 bootrom_code_len = (. - zero)
 ; safety check disabled; .ifgt is not supported by sdcc 3.1 in Debian stable
-;; .ifgt (bootrom_code_len - memtop) ; did we grow too large?
+;; .ifgt (bootrom_code_len - padding) ; did we grow too large?
 ;; ; cause an error (.msg, .error not yet supported by sdas which itself is an error)
 ;; .msg "Boot ROM code/data is too large"
 ;; .error 1
 ;; .endif
-; make space so the "init" symbol in runtime0.s is at 0x100
-        .ds memtop - (. - zero)          ; space until the CP/M load vector
-        .db 0x05,0xCA                   ; 2 signature bytes
-        .ascii 'UNA CP/M ROM'           ; 12 signature bytes
-        .db 0xDC,0x86                   ; 2 signature bytes
+
+; pad to 0x100 where the init code starts
+padding = 0x100 - bootrom_code_len
+        .ds padding

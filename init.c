@@ -8,6 +8,7 @@
 #include "drives.h"
 #include "memory.h"
 #include "bios.h"
+#include "version.h"
 
 union regs reg_in, reg_out;
 bool update_saved_config = false;
@@ -18,10 +19,9 @@ bool cpm_loaded(void)
     return (*((unsigned char *)BDOS_ENTRY_ADDR) == 0xC3); // 0xC3 == JP instruction
 }
 
-void write_signatures(void)
+void write_signature(void)
 {
     *((unsigned int *)CPM_SIGNATURE_ADDR)  = 0x05B1; // Identify UNA CP/M
-    *((unsigned int *)BIOS_SIGNATURE_ADDR) = 0x9CCE; // Identify UNA BIOS
 }
 
 void halt(void)
@@ -37,7 +37,7 @@ void cpminit(char *cmdline)
     unsigned char *target;
 
     // hello, world.
-    printf("N8VEM UNA BIOS CP/M (Will Sowerbutts, 2014-07-16)\n");
+    printf("N8VEM %s\n", software_version_string);
 
     // prepare the high memory structures
     if(!init_persist())
@@ -104,7 +104,7 @@ void cpminit(char *cmdline)
     write_persist(target, cpm_image_length);
 
     // write signatures in memory to identify us
-    write_signatures();
+    write_signature();
 
     // boot the residual CP/M system
     boot_cpm(target+BOOT_VECTOR_OFFSET);

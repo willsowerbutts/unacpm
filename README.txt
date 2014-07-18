@@ -15,10 +15,10 @@ memory. When the initialisation code has finished it is discarded, with control
 passing to the residual second stage which implements CP/M and a minimal CBIOS.
 
 This two-stage approach allows the user to choose a balance between the number
-of drives available to CP/M and the size of the transient program area (TPA). 
+of drives available to CP/M and the size of the transient program area (TPA).
 
-Once running, the included REMAP program can be used to quickly re-launch UNA
-CP/M with a different drive mapping.
+Once running, the included REMAP program can be used to restart CP/M with a
+different drive mapping.
 
 This version of UNA CP/M includes only basic support for character I/O 
 devices. The CP/M "I/O byte" is ignored. All console input and output are 
@@ -236,10 +236,23 @@ prompt. You may optionally follow the unit number with a command line
 specifying the desired drive mapping.
 
 
+= Building UNA CP/M =
+
+I build UNA CP/M under Debian GNU/Linux. 
+
+You will need the Python, Make, SRecord and SDCC packages. 
+
+In Debian wheezy or later, "apt-get install python make srecord sdcc" should
+install everything you require, then simply type "make clean all" in the
+distribution directory.
+
+
 = Bugs =
 
-Both UNA BIOS and UNA CP/M are in development. Please report any bugs you find
-to the authors. My email address is will@sowerbutts.com.
+Both UNA BIOS and UNA CP/M are in development.
+
+Please report any bugs you find to the authors. My email address is
+will@sowerbutts.com.
 
 
 = License =

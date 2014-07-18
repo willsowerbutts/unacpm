@@ -6,11 +6,12 @@ CCOPTS=--std-sdcc99 --no-std-crt0 -mz80 --opt-code-size --max-allocs-per-node 10
 LDOPTS=-n -k /usr/share/sdcc/lib/z80/ -wmx
 
 RUNTIME=cpm22ccp.rel cpm22bdos.rel cpmbios.rel
-INIT=bootrom.rel runtime0.rel relocate.rel relocate2.rel cpmimage.rel 
+INIT=bootrom.rel runtime0.rel relocate.rel relocate2.rel cpmimage.rel
 INIT+=putchar.rel units.rel bios.rel drives.rel memory.rel config.rel init.rel
 
 .SUFFIXES:	# delete default suffixes
 .SUFFIXES:	.c .s .ss .inc .rel .ihx .hex
+.PHONY:		clean
 
 %.rel:	%.s
 	$(SDAS) $(ASOPTS) $<
@@ -22,8 +23,8 @@ INIT+=putchar.rel units.rel bios.rel drives.rel memory.rel config.rel init.rel
 # all:	cpm.com cpm.ihx cpm.rom
 all:	cpm.com cpm.rom cpm.ihx remap.com bootdisk.bin
 
-cpm.ihx:	$(INIT)
-	$(SDLD) $(LDOPTS) -i cpm.ihx -b _CODE=0x0000 -l z80 $(INIT)
+cpm.ihx:	$(INIT) version.rel
+	$(SDLD) $(LDOPTS) -i cpm.ihx -b _CODE=0 -l z80 $(INIT) version.rel
 
 cpm.com:	cpm.ihx
 	srec_cat -disable-sequence-warning \
@@ -52,7 +53,7 @@ remap.com:	remap.ihx
  		-output remap.com -binary
 
 clean:
-	rm -f *.ihx *.hex *.rel *.map *.bin cpm.com *.noi cpm.rom *.lst cpmimage.c *.asm *.sym remap.com
+	rm -f *.ihx *.hex *.rel *.map *.bin cpm.com *.noi cpm.rom *.lst cpmimage.c *.asm *.sym remap.com version.s
 
 # Link CP/M at two base addresses so we can derive a relocatable version
 cpm-0000.ihx:	$(RUNTIME)
@@ -73,3 +74,6 @@ cpm-8000.bin:	cpm-8000.ihx
 
 cpmimage.c:	cpm-0000.bin cpm-8000.bin
 	./mkrelocatable.py cpm-0000.bin cpm-8000.bin cpm-reloc.bin cpmimage.c
+
+version.s:	$(INIT) mkversion.py
+	./mkversion.py

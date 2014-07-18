@@ -209,7 +209,6 @@ void unit_parse_mbr(unsigned char num)
         unit_info[num].flags |= UNIT_FLAG_MBR_PRESENT;
         for(p=0; p<MBR_ENTRY_COUNT; p++){
             if(part->type == 0x32){ // bingo
-                // printf("[found 0x32]");
                 unit_info[num].flags |= UNIT_FLAG_CPM_PARTITION;
                 lba_first = part->lba_first;
                 lba_count = part->lba_count;

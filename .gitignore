@@ -13,4 +13,5 @@
 cpm.com
 cpm.rom
 cpmimage.c
-assign.com
+remap.com
+version.s

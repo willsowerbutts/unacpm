@@ -44,6 +44,5 @@ void boot_cpm(void *target);
 // addresses of interesting data in the zero page
 #define BDOS_ENTRY_ADDR               0x0005
 #define CPM_SIGNATURE_ADDR            0x0040
-#define BIOS_SIGNATURE_ADDR           0x0046
 
 #endif
