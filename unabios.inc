@@ -25,3 +25,9 @@ UNABIOS_BOOTHISTORY         = 0xFC      ; C register (subfunction in B)
 UNABIOS_BOOT_GET            = 0x00      ;   B register (BOOTHISTORY subfunction)
 UNABIOS_BOOT_SET            = 0x01      ;   B register (BOOTHISTORY subfunction)
 UNABIOS_GET_HMA             = 0xF1      ; C register (subfunction in B)
+
+BIOS_IDENTITY_POINTER       = 0xFFFE    ; last two bytes of RAM point to ID bytes
+
+; UNA ID bytes: '"push iy" as the initial instruction is cast in concrete as far as I'm concerned.' -- JC
+BIOS_ID_UNA_BYTE0           = 0xFD
+BIOS_ID_UNA_BYTE1           = 0xE5

@@ -25,25 +25,40 @@ continue:
         ld sp, #stacktop
 
         ; check for UNA BIOS presence
-        ld hl, #0x46
+        ld hl, (BIOS_IDENTITY_POINTER)
         ld a, (hl)
-        cp #0xCE
+        cp #BIOS_ID_UNA_BYTE0
         inc hl
         ld a, (hl)
-        cp #0x9C
+        cp #BIOS_ID_UNA_BYTE1
         jr nz, notuna
 
         ; smells like UNA.
         ; now examine each page in ROM
         
-        ; we know it won't be in page 0, so start with page 1.
-        ld de, #1
+        ld de, #0
 nextrom:
         push de     ; save page number
         ld bc, #(UNABIOS_BANK_SET << 8 | UNABIOS_BANKEDMEM)
         call UNABIOS_STUB_ENTRY ; can't use RST 8 vector
         ; examine ROM 
-        ld hl, #(0x100 - siglength)
+        ld hl, (0x0004)         ; read pointer at address 4
+        ld a, (hl)              ; check signature byte
+        cp #0x76
+        jr nz, sigfail
+        inc hl
+        ld a, (hl)              ; check signature byte
+        cp #0xB5
+        jr nz, sigfail
+        ; at this point is is almost certainly a ROM with an identity structure
+        inc hl                  ; advance to version number byte
+        inc hl                  ; advance to ROM size byte
+        inc hl                  ; advance to first byte of version string
+        ld e, (hl)
+        inc hl
+        ld d, (hl)
+        ex de, hl
+        ; HL now points at the ROM's short description text
         ld de, #sigcheck
         ld b, #siglength
 checkbyte:
@@ -93,10 +108,9 @@ unafailstr:
         .ascii 'This program requires UNA BIOS$'
 
 sigcheck:
-        .db 0x05,0xCA                   ; 2 signature bytes
-        .ascii 'UNA CP/M ROM'           ; 12 signature bytes
-        .db 0xDC,0x86                   ; 2 signature bytes
+        .ascii "UNA CP/M (Will Sowerbutts"   ; remainder of the text varies with version
 siglength = . - sigcheck
+
 stack:
         .ds 256
 stacktop:
