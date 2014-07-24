@@ -11,40 +11,38 @@ bool relocate_nextbit(void);
 unsigned char relocate_nextbyte(void);
 
 /*
- * relocate2.s contains faster assembler implementations of these two functions
+ * relocate2.s contains faster assembler implementations of these two functions.
  *
-bool relocate_nextbit(void)
-{
-    bool r;
-
-    r = *dataptr & databit;
-    databit = databit >> 1;
-    if(databit == 0){
-        databit=TOPBIT;
-        dataptr++;
-    }
-
-    return r;
-}
-
-unsigned char relocate_nextbyte(void)
-{
-    unsigned char out = 0;
-    unsigned char bits = 8;
-
-    // printf("\n");
-
-    while(1){
-        if(relocate_nextbit())
-            out |= 1;
-        if(--bits == 0){
-            cksum += out;
-            return out;
-        }
-        out = out << 1;
-    }
-}
-*/
+ *  bool relocate_nextbit(void)
+ *  {
+ *      bool r;
+ *  
+ *      r = *dataptr & databit;
+ *      databit = databit >> 1;
+ *      if(databit == 0){
+ *          databit=TOPBIT;
+ *          dataptr++;
+ *      }
+ *  
+ *      return r;
+ *  }
+ *  
+ *  unsigned char relocate_nextbyte(void)
+ *  {
+ *      unsigned char out = 0;
+ *      unsigned char bits = 8;
+ *  
+ *      while(1){
+ *          if(relocate_nextbit())
+ *              out |= 1;
+ *          if(--bits == 0){
+ *              cksum += out;
+ *              return out;
+ *          }
+ *          out = out << 1;
+ *      }
+ *  }
+ */
 
 unsigned int relocate_read_int(unsigned char bits)
 {
@@ -100,7 +98,7 @@ bool relocate_cpm(unsigned char *dest)
             // we wrote the low byte in the previous pass
             // now we write the high byte;
             *(target++) = relocate_nextbyte();
-            // the we relocate the value just written;
+            // then we relocate the value just written;
             r = (unsigned int*)(target - 2);
             *r += reloc_offset;
             length--;
@@ -118,6 +116,7 @@ bool relocate_cpm(unsigned char *dest)
         printf("checksum mismatch\n");
         return false;
     }
-    // seems OK
+
+    // looks OK!
     return true;
 }
