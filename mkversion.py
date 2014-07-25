@@ -15,26 +15,30 @@ def run_command(cmd):
 
 date_str = datetime.datetime.now().strftime("%Y-%m-%d")
 
+git_hash = None
 if os.access('.git', os.F_OK):
-    git_hash = run_command(['git', 'rev-parse', 'HEAD']).strip()
-    git_diff = run_command(['git', 'diff', '--numstat']).strip()
-    git_hash = git_hash[:6]
-    if git_diff:
-        git_hash += '+'
-else:
-    git_hash = None
+    try:
+        git_hash = run_command(['git', 'rev-parse', 'HEAD']).strip()
+        git_diff = run_command(['git', 'diff', '--numstat']).strip()
+        git_hash = git_hash[:6]
+        if git_diff:
+            git_hash += '+'
+    except Exception, e:
+        print "Git failed or not installed: %s" % str(e)
 
 if git_hash:
     version_string = '%s git %s' % (date_str, git_hash)
 else:
     version_string = '%s' % (date_str,)
 
-fd = open("version.s", 'w')
-fd.write('; do not modify -- dynamically generated file\n')
-fd.write('\n')
-fd.write('\t.module version\n')
-fd.write('\t.globl _software_version_string\n')
-fd.write('\t.area _CODE\n\n')
-fd.write('_software_version_string:\n')
-fd.write('\t.ascii "UNA CP/M (Will Sowerbutts, %s)"\n' % version_string)
-fd.write('\t.db 0\n')
+open("version.s", 'w').write(
+"""; do not modify -- dynamically generated file
+
+	.module version
+	.globl _software_version_string
+	.area _CODE
+
+_software_version_string:
+	.ascii "%s"
+	.db 0
+""" % version_string)
