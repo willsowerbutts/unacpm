@@ -183,7 +183,7 @@ void ram_disk_consider_format(unsigned char num)
             unit_info[num].flags |= UNIT_FLAG_FORMATTED;
             return;
         }
-        if(valid > 128)   // first pass -- more than half valid?
+        if(valid >= 230)  // first pass -- more than 90% were valid?
             return;       // no need to format
         // first pass -- set up to format
         disk_op = UNABIOS_BLOCK_WRITE;

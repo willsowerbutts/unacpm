@@ -39,6 +39,6 @@ open("version.s", 'w').write(
 	.area _CODE
 
 _software_version_string:
-	.ascii "%s"
+	.ascii "UNA CP/M (Will Sowerbutts, %s)"
 	.db 0
 """ % version_string)
