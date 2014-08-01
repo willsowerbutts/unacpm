@@ -40,7 +40,6 @@ void write_persist(unsigned char *target, unsigned int cpm_image_length)
     target = target + cpm_image_length - sizeof(persist_t);
     memcpy(target, &persist, sizeof(persist_t));
     (*persist_ptr) = (persist_t*)target;
-
 }
 
 bool init_persist(void)

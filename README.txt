@@ -268,8 +268,8 @@ I build UNA CP/M under Debian GNU/Linux.
 You will need the Python, Make, SRecord and SDCC packages. 
 
 In Debian wheezy or later, "apt-get install python make srecord sdcc" should
-install everything you require, then simply type "make clean all" in the
-distribution directory.
+install everything you require, then simply type "make clean all -j" in the
+distribution "source" directory.
 
 
 = Bugs =
