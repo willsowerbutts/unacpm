@@ -14,22 +14,26 @@ def run_command(cmd):
     return out
 
 date_str = datetime.datetime.now().strftime("%Y-%m-%d")
+version_string = date_str
 
 git_hash = None
 if os.access('.git', os.F_OK):
+    # for my development versions
     try:
         git_hash = run_command(['git', 'rev-parse', 'HEAD']).strip()
         git_diff = run_command(['git', 'diff', '--numstat']).strip()
         git_hash = git_hash[:6]
         if git_diff:
             git_hash += '+'
+        version_string = '%s git %s' % (date_str, git_hash)
+        # write a file that is used by release versions
+        open("version.num", 'w').write(version_string)
     except Exception, e:
         print "Git failed or not installed: %s" % str(e)
-
-if git_hash:
-    version_string = '%s git %s' % (date_str, git_hash)
 else:
-    version_string = '%s' % (date_str,)
+    # for release versions
+    if os.access('version.num', os.R_OK):
+        version_string = open('version.num').read()
 
 open("version.s", 'w').write(
 """; do not modify -- dynamically generated file

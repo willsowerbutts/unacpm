@@ -1,0 +1,21 @@
+#!/bin/bash
+
+CODE=unacpm-$(/bin/date +%Y-%m-%d)
+TARGET=release/$CODE
+
+if [ -d $TARGET ]; then
+    echo "Release $CODE already exists in $TARGET"
+    exit 1
+fi
+
+mkdir $TARGET $TARGET/compiled $TARGET/source
+make clean
+make all -j
+cp *.?om bootdisk.bin $TARGET/compiled
+make clean
+cp * $TARGET/source
+mv $TARGET/source/README.txt $TARGET/
+mv $TARGET/source/LICENSE.txt $TARGET/
+rm $TARGET/source/mkrelease
+cd release
+zip -9r ${CODE}.zip $CODE
