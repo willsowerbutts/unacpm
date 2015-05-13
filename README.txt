@@ -69,6 +69,11 @@ partition types can therefore be used to create "protective" areas, ie to
 mark the space as being in use and prevent other systems from trying to use
 it.
 
+If UNA CP/M finds a partition of type 0x52, with a length of exactly 16,384
+sectors (0x4000 hex), and with a starting sector which is 0x100 modulo 0x4100,
+it will ignore it as a "protective" partition. This is because some CP/M-68
+systems use partitions of this type to share file systems with RomWBW.
+
 If UNA CP/M finds partitions of any other type it will regard them as being in
 use by some foreign operating system and will avoid using that space entirely.
 This ensures that CP/M does not overlay slices over another operating system's
@@ -96,7 +101,10 @@ UNA CP/M will use all the space from the start of the disk up to the start of
 the first "foreign" partition. If you've left unpartitioned space at the start
 of the disk, it will use this. If you've created a "protective" partition to
 stop other operating systems writing to this space, make sure it is type 0x05
-or 0x0F so that UNA CP/M ignores it rather than regarding it as "foreign".
+or 0x0F so that UNA CP/M ignores it rather than regarding it as "foreign". If
+you use CP/M-68 you may wish to use the partition type 0x52 as described above
+so that CP/M-68, RomwBW and UNA CP/M can all access the same filesystems on one
+disk.
 
  * You have a disk that you use with RomWBW and you want to use a type 0x32 
    partition to contain your data:

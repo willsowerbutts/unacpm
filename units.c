@@ -216,6 +216,10 @@ void unit_parse_mbr(unsigned char num)
             }else if(part->type == 0x05 || part->type == 0x0F){ // CHS/LBA extended partition?
                 unit_info[num].flags |= UNIT_FLAG_IGNORED_PARTITION;
                 // ignore these to allow them to be used as "protective partition" purposes
+            }else if(part->type == 0x52 && part->lba_count == 0x4000 && (part->lba_first % 0x4100) == 0x100){ // CP/M-68 data partition
+                // ignore any CP/M-68 data partition that overlays a RomWBW slice    JRC 2015-05-12
+                unit_info[num].flags |= UNIT_FLAG_IGNORED_PARTITION;
+                // ignore these to allow them to be used as "protective partition" purposes
             }else if(part->type){ // any other non-empty foreign partition?
                 unit_info[num].flags |= UNIT_FLAG_FOREIGN_PARTITION;
                 // first sector of this partition sets a ceiling on what we can use for CP/M slices
