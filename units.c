@@ -358,13 +358,17 @@ void init_units(void)
             ram_disk_consider_format(unit);
 
         // sliced?
+        u->lba_first = 0;
         if(media_sliced(m)){
-            unit_parse_mbr(unit);
-            if(u->slice_count)
-                if(unit_load_configuration(unit))
-                    u->flags |= UNIT_FLAG_CONFIG_PRESENT;
+            if(u->sectors > 1){
+                unit_parse_mbr(unit);
+                if(u->slice_count)
+                    if(unit_load_configuration(unit))
+                        u->flags |= UNIT_FLAG_CONFIG_PRESENT;
+            }else{
+                u->slice_count = 0;
+            }
         }else{
-            u->lba_first = 0;
             u->slice_count = 1;
         }
 
