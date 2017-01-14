@@ -37,7 +37,7 @@ void cpminit(char *cmdline)
     unsigned char *target;
 
     // hello, world.
-    printf("N8VEM %s\n", software_version_string);
+    printf("Retrobrew Computers %s\n", software_version_string);
 
     // prepare the high memory structures
     if(!init_persist())

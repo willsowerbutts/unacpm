@@ -1,4 +1,4 @@
-; CP/M 2.2 CBIOS for UNA BIOS for N8VEM
+; CP/M 2.2 CBIOS for UNA BIOS for Retrobrew Computers project
 ; 2014-06-24  Will Sowerbutts <will@sowerbutts.com>
 ;
 ; Based on:

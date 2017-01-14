@@ -7,7 +7,8 @@
 UNA CP/M is a CP/M 2.2 operating system for computers running UNA BIOS.  
 
 UNA BIOS is a unified BIOS which aims to run on all Z80 and Z180 single board
-computer systems from the N8VEM home brew computer project.
+computer systems from the Retrobrew Computers (formerly "N8VEM") home brew
+computer project.
 
 UNA CP/M is structured as a two-stage program. The first stage handles the
 initialisation of the system and constructs the second (residual) stage in
@@ -25,7 +26,7 @@ devices. The CP/M "I/O byte" is ignored. All console input and output are
 handled by UNA serial device 0.
 
 UNA CP/M's CBIOS is based in part on the RomWBW CBIOS by Wayne Warthen,
-Andrew Lynch and other contributors to the N8VEM project.
+Andrew Lynch and other contributors to the Retrobrew Computers project.
 
 
 = Drives, Units, Disks, Partitions and Slices =
@@ -51,10 +52,11 @@ Each slice is exactly 8,320KB in length, with the first 128KB reserved to
 hold system-specific data (for example, the data required to boot from the 
 disk).
 
-Previous CP/M systems for N8VEM, including RomWBW, store the slices starting at
-LBA 0 (ie, the first sector) and extending to cover the entire disk. This can
-be a problem if you wish to store other filesystems on the disk. UNA CP/M
-supports disks that optionally use a PC-style MBR partition table.
+Previous CP/M systems for Retrobrew Computers, including RomWBW, store the
+slices starting at LBA 0 (ie, the first sector) and extending to cover the
+entire disk. This can be a problem if you wish to store other filesystems on
+the disk. UNA CP/M supports disks that optionally use a PC-style MBR partition
+table.
 
 UNA CP/M will read the four primary partition entries from the MBR and use 
 these to decide where to store its data on the disk.
