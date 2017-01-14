@@ -3,7 +3,7 @@ SDAS=sdasz80
 SDLD=sdldz80
 ASOPTS=-fflopzws
 CCOPTS=--std-sdcc99 --no-std-crt0 -mz80 --opt-code-size --max-allocs-per-node 10000 --Werror
-LDOPTS=-n -k /usr/share/sdcc/lib/z80/ -wmx
+LDOPTS=-n -k /usr/local/share/sdcc/lib/z80/ -k /usr/share/sdcc/lib/z80/ -wmx
 
 RUNTIME=cpm22ccp.rel cpm22bdos.rel cpmbios.rel
 INIT=bootrom.rel runtime0.rel relocate.rel relocate2.rel cpmimage.rel
