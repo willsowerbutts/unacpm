@@ -7,7 +7,7 @@
 
 ; we are loaded at 0x8000
 buffer    = 0x8200 ; disk buffer (512 bytes)
-stacktop  = 0x8400 ; top of stack (512 bytes)
+stacktop  = 0x8600 ; top of stack (512 bytes)
 
 .include "unabios.inc"
 
@@ -49,7 +49,7 @@ go:     ld sp, #stacktop                ; set inital stack
 
         ; wipe persistent memory pointer (persist_ptr, immediately below UNA UBIOS stub / HMA)
         ld c, #UNABIOS_GET_HMA          ; get pointer to lowest byte used by UNA BIOS stub
-        rst #UNABIOS_CALL               ; returns lowest used byte in HL.
+        call #UNABIOS_STUB_ENTRY        ; returns lowest used byte in HL.
         xor a                           ; zero out the two bytes below that.
         dec hl
         ld (hl), a
@@ -72,7 +72,7 @@ nextblock:
         ld c, #UNABIOS_BLOCK_SETLBA
         ld a, (unit)
         ld b, a
-        rst #UNABIOS_CALL
+        call #UNABIOS_STUB_ENTRY
         jr nz, error
 
         ; read block into buffer
@@ -81,7 +81,7 @@ nextblock:
         ld b, a
         ld l, #1
         ld de, #buffer
-        rst #UNABIOS_CALL
+        call #UNABIOS_STUB_ENTRY
         jr nz, error
 
         ; copy block into low memory
@@ -89,13 +89,8 @@ nextblock:
         ld e, #0
         ld a, (copyaddr)
         ld d, a
-        cp #1               ; the first block?
-        jr nz, full
-        ld bc, #256         ; do just the top half
-        inc h
-        jr doldir
-full:   ld bc, #512         ; do the full block
-doldir: ldir
+        ld bc, #512
+        ldir
 
         ld a, d
         ld (copyaddr), a
@@ -108,9 +103,13 @@ doldir: ldir
         call printchar
         ld e, #0x0A
         call printchar
-
-        ; we're loaded. let's go.
-        jp 0x100
+        ; write unabios vector in user memory
+        ld hl, #UNABIOS_STUB_ENTRY
+        ld de, #0x0008
+        ld bc, #3           ; jump + 16-bit address
+        ldir
+        ; let's go
+        jp 0x0000
 
 
 ; print a hex byte in A
@@ -154,8 +153,8 @@ error:
         halt
 
 unit:       .db 0
-block:      .db 2       ; start loading at sector 2
-copyaddr:   .db 1       ; start loading at 0x100, not 0.
+block:      .db 2       ; start loading from disk at sector 2
+copyaddr:   .db 0       ; start loading to memory at 0x0000
 
     .ds 0x1BE - ( . -start) ; pad to start of partition tables
     .db 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ; partition 1
